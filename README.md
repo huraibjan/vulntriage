@@ -62,6 +62,9 @@ This system combines:
 | Positive rate | **0.39%** | CISA KEV-strict labels |
 | Temporal train/test split | **June 2024** | No future leakage |
 
+![Model Comparison — RRF Ensemble vs Baselines](docs/figures/ensemble_comparison_bars.png)
+*Figure 1: PR-AUC comparison across all model configurations and feature ablations. RRF Ensemble achieves 0.3671 vs EPSS baseline 0.271.*
+
 ---
 
 ## System Architecture
@@ -115,6 +118,9 @@ This system combines:
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+![System Architecture](docs/figures/system_architecture.png)
+*Figure 2: End-to-end VulnTriage platform — data ingestion, feature engineering, ML pipeline, RAG intelligence layer, and React dashboard.*
 
 ---
 
@@ -214,6 +220,12 @@ cd frontend && npm install && npm run dev
 | FastAPI Swagger UI | http://localhost:8000/docs |
 | FastAPI ReDoc | http://localhost:8000/redoc |
 | Qdrant Dashboard | http://localhost:6333/dashboard |
+
+![VulnTriage Dashboard](docs/figures/screenshot_dashboard.png)
+*Figure 3: React dashboard showing threat overview, top-risk CVEs, and ML exploitation scores.*
+
+![Vulnerability Explorer](docs/figures/screenshot_vulnerabilities.png)
+*Figure 4: CVE explorer with search, filtering, and per-vulnerability ML triage scores.*
 
 ---
 
@@ -454,6 +466,12 @@ RAG brief response schema:
 
 RRF formula: `RRF(d) = Σᵣ 1 / (k + rankᵣ(d))` where `k = 60`
 
+![Precision-Recall Curves](docs/figures/ensemble_pr_curves.png)
+*Figure 5: Precision-Recall curves for all models. RRF Ensemble (blue) dominates across all recall levels.*
+
+![Feature Importance](docs/figures/feature_importance_ensemble.png)
+*Figure 6: XGBoost feature importance. CVSS attack vector, EPSS score, and KEV membership are top predictors.*
+
 ### Circularity Audit (RQ2)
 
 | Leakage Type | Description | Effect |
@@ -462,6 +480,12 @@ RRF formula: `RRF(d) = Σᵣ 1 / (k + rankᵣ(d))` where `k = 60`
 | Label | KEV/PoC flag used as input feature | **3.73× PR-AUC inflation** |
 | Entity | ID-correlated proxy variables | Variable inflation |
 | Correlation | Indirect statistical co-occurrence | Variable inflation |
+
+![Circularity Inflation](docs/figures/circularity_inflation.png)
+*Figure 7: PR-AUC inflation from circular features — 0.8911 (circular) vs 0.2389 (clean) — a 3.73× inflation factor.*
+
+![Ablation Heatmap](docs/figures/ablation_heatmap.png)
+*Figure 8: Ablation heatmap across 6 feature configurations × 7 model variants. Color encodes PR-AUC.*
 
 ---
 
@@ -490,6 +514,9 @@ CVE Metadata
 Qdrant collections:
 - `attck_text` — MITRE ATT&CK technique embeddings
 - `vuln_text` — CVE description embeddings
+
+![AI Intelligence Brief](docs/figures/screenshot_ai_briefing.png)
+*Figure 9: RAG-generated ATT&CK-grounded intelligence brief for CVE-2024-21762 (Fortinet FortiOS RCE).*
 
 ---
 
@@ -636,6 +663,9 @@ poetry run pytest tests/test_leakage_audit.py -v
 | **RQ2** | How much do circular features inflate metrics, and can this be detected? | 3.73× inflation; 4-layer audit framework |
 | **RQ3** | Can RAG produce verifiable, ATT&CK-grounded intelligence briefs? | STIX-validated, hallucination-checked briefs |
 | **RQ4** | Can a decision engine deliver auditable triage with explicit SLAs? | 5-tier SSVC output with 24h–1yr SLA |
+
+![Top-K Precision & Recall](docs/figures/topk_precision_recall.png)
+*Figure 10: Top-K precision and recall at K=25, 50, 100. The ensemble achieves 71% precision@100, directly supporting operational triage workflows.*
 
 ---
 
