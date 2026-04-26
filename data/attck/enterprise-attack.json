@@ -1,0 +1,151 @@
+{
+  "type": "bundle",
+  "id": "bundle--enterprise-attack",
+  "spec_version": "2.1",
+  "objects": [
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+      "name": "Exploit Public-Facing Application",
+      "description": "Adversaries may attempt to exploit a weakness in an Internet-facing host or system to initially access a network. The weakness in the system can be a software bug, a temporary glitch, or a misconfiguration. Exploited applications are often websites/web servers, but can also include databases (like SQL), standard services (like SMB or SSH), network device administration and management protocols (like SNMP and Smart Install), and any other system with Internet accessible open sockets. Depending on the flaw being exploited this may also involve Exploitation for Defense Evasion.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1190", "url": "https://attack.mitre.org/techniques/T1190"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS", "Network", "Containers"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--b80d107d-fa0d-4b60-9684-b0433e8bdba0",
+      "name": "External Remote Services",
+      "description": "Adversaries may leverage external-facing remote services to initially access and/or persist within a network. Remote services such as VPNs, Citrix, and other access mechanisms allow users to connect to internal enterprise network resources from external locations. There are often remote service gateways that manage connections and credential authentication for these services.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1133", "url": "https://attack.mitre.org/techniques/T1133"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "persistence"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--d1fcf083-a721-4223-aedf-bf8960798d62",
+      "name": "Command and Scripting Interpreter",
+      "description": "Adversaries may abuse command and script interpreters to execute commands, scripts, or binaries. These interfaces and languages provide ways of interacting with computer systems and are a common feature across many platforms. Most systems come with some built-in command-line interface and scripting capabilities.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1059", "url": "https://attack.mitre.org/techniques/T1059"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS", "Network"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--be2dcee9-a7a7-4e38-afd6-21b31ecc3d63",
+      "name": "Exploitation for Client Execution",
+      "description": "Adversaries may exploit software vulnerabilities in client applications to execute code. Vulnerabilities can exist in software due to unsecure coding practices that can lead to unanticipated behavior. Adversaries can take advantage of certain vulnerabilities through targeted exploitation for the purpose of arbitrary code execution.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1203", "url": "https://attack.mitre.org/techniques/T1203"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--9db0cf3a-a3c9-4012-8268-123b9db6fd82",
+      "name": "Exploitation for Privilege Escalation",
+      "description": "Adversaries may exploit software vulnerabilities in order to elevate privileges. Exploitation of a software vulnerability occurs when an adversary takes advantage of a programming error in a program, service, or within the operating system software or kernel itself to execute adversary-controlled code.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1068", "url": "https://attack.mitre.org/techniques/T1068"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "privilege-escalation"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--fe926152-f431-4baf-956c-4ad3cb0bf23b",
+      "name": "Exploitation for Defense Evasion",
+      "description": "Adversaries may exploit a system or application vulnerability to bypass security features. Exploitation of a software vulnerability occurs when an adversary takes advantage of a programming error in a program, service, or within the operating system software or kernel itself to execute adversary-controlled code. Vulnerabilities may exist in defensive security software that can be used to disable or circumvent them.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1211", "url": "https://attack.mitre.org/techniques/T1211"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "defense-evasion"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--a93494bb-4b80-4ea1-8695-3236a49916fd",
+      "name": "Valid Accounts",
+      "description": "Adversaries may obtain and abuse credentials of existing accounts as a means of gaining Initial Access, Persistence, Privilege Escalation, or Defense Evasion. Compromised credentials may be used to bypass access controls placed on various resources on systems within the network.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1078", "url": "https://attack.mitre.org/techniques/T1078"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "persistence"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "privilege-escalation"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "defense-evasion"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS", "SaaS", "IaaS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--b17a1a56-e99c-403c-8948-561df0cffe81",
+      "name": "OS Credential Dumping",
+      "description": "Adversaries may attempt to dump credentials to obtain account login and credential material, normally in the form of a hash or a clear text password. Credentials can then be used to perform Lateral Movement and access restricted information.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1003", "url": "https://attack.mitre.org/techniques/T1003"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "credential-access"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+      "name": "Ingress Tool Transfer",
+      "description": "Adversaries may transfer tools or other files from an external system into a compromised environment. Tools or files may be copied from an external adversary-controlled system to the victim network through the command and control channel or through alternate protocols such as ftp.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1105", "url": "https://attack.mitre.org/techniques/T1105"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "command-and-control"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--7385dfaf-6886-4229-9ecd-6fd678c81d29",
+      "name": "Server Software Component: Web Shell",
+      "description": "Adversaries may backdoor web servers with web shells to establish persistent access to systems. A web shell is a web script that is placed on an openly accessible web server to allow an adversary to use the server as a gateway for further network exploitation.",
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1505.003", "url": "https://attack.mitre.org/techniques/T1505/003"}
+      ],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "persistence"}
+      ],
+      "x_mitre_platforms": ["Linux", "Windows", "macOS"],
+      "x_mitre_deprecated": false
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+[tool.poetry]
+name = "vulntriage"
+version = "0.1.0"
+description = "AI-Driven Vulnerability Intelligence & Exploitability Prediction System"
+authors = ["Huraib"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.scripts]
+vulntriage = "app.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# API & CLI
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.32.0" }
+typer = "0.9.0"
+# Database
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.0" }
+alembic = "^1.14.0"
+psycopg2-binary = "^2.9.0"
+# Vector DB
+qdrant-client = "^1.12.0"
+# ML – tabular
+scikit-learn = "^1.5.0"
+xgboost = "^2.1.0"
+lightgbm = "^4.5.0"
+# ML – text / embeddings
+transformers = "^4.46.0"
+torch = ">=2.1.0"
+sentence-transformers = "^3.3.0"
+# Data processing
+pandas = "^2.2.0"
+numpy = "^1.26.0"
+# Validation & serialization
+pydantic = "^2.10.0"
+pydantic-settings = "^2.6.0"
+# Plotting
+matplotlib = "^3.9.0"
+seaborn = "^0.13.0"
+# Utilities
+httpx = "^0.28.0"
+openai = "^1.0.0"
+python-dotenv = "^1.0.0"
+structlog = "^24.4.0"
+tenacity = "^9.0.0"
+joblib = "^1.4.0"
+jsonschema = "^4.23.0"
+rich = "^13.9.0"
+click = "8.1.7"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-cov = "^6.0.0"
+pytest-asyncio = "^0.24.0"
+ruff = "^0.8.0"
+mypy = "^1.13.0"
+pre-commit = "^4.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
