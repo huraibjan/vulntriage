@@ -1,0 +1,109 @@
+[
+  {
+    "name": "web-server-prod-01",
+    "asset_type": "server",
+    "environment": "production",
+    "criticality": "critical",
+    "owner": "platform-team",
+    "is_internet_facing": true,
+    "network_zone": "dmz",
+    "tags": {"team": "backend", "region": "us-east-1"},
+    "software": [
+      {"vendor": "apache", "product": "http_server", "version": "2.4.49", "cpe": "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*", "source": "sbom_scan"},
+      {"vendor": "openssl", "product": "openssl", "version": "1.1.1k", "cpe": "cpe:2.3:a:openssl:openssl:1.1.1k:*:*:*:*:*:*:*", "source": "sbom_scan"},
+      {"vendor": "php", "product": "php", "version": "7.4.25", "source": "sbom_scan"}
+    ],
+    "reachability": [
+      {"cve_id": "CVE-2021-41773", "reachability_type": "network", "is_reachable": true, "confidence": 0.95, "tool": "nmap", "evidence_detail": "Port 443 open, HTTP/2 enabled"},
+      {"cve_id": "CVE-2021-41773", "reachability_type": "code_path", "is_reachable": true, "confidence": 0.85, "tool": "semgrep", "evidence_detail": "mod_cgi enabled in config"}
+    ],
+    "controls": [
+      {"control_type": "waf", "control_name": "ModSecurity CRS 3.3", "is_active": true, "effectiveness": 0.75, "source": "api_query"},
+      {"control_type": "ips", "control_name": "Suricata 6.0", "is_active": true, "effectiveness": 0.60, "source": "manual"}
+    ],
+    "vex_statements": [
+      {"cve_id": "CVE-2021-41773", "vendor": "apache", "product": "http_server", "status": "affected", "action_statement": "Upgrade to 2.4.51", "source": "csaf_vex"}
+    ]
+  },
+  {
+    "name": "db-server-internal-01",
+    "asset_type": "server",
+    "environment": "production",
+    "criticality": "high",
+    "owner": "data-team",
+    "is_internet_facing": false,
+    "network_zone": "internal",
+    "tags": {"team": "data-engineering", "region": "us-east-1"},
+    "software": [
+      {"vendor": "postgresql", "product": "postgresql", "version": "13.4", "source": "manual"},
+      {"vendor": "linux", "product": "linux_kernel", "version": "5.4.0", "source": "sbom_scan"}
+    ],
+    "reachability": [],
+    "controls": [
+      {"control_type": "network_segmentation", "control_name": "VLAN isolation", "is_active": true, "effectiveness": 0.90, "source": "manual"},
+      {"control_type": "edr", "control_name": "CrowdStrike Falcon", "is_active": true, "effectiveness": 0.85, "source": "api_query"}
+    ],
+    "vex_statements": []
+  },
+  {
+    "name": "dev-container-staging",
+    "asset_type": "container",
+    "environment": "staging",
+    "criticality": "low",
+    "owner": "dev-team",
+    "is_internet_facing": false,
+    "network_zone": "internal",
+    "tags": {"team": "frontend", "ephemeral": "true"},
+    "software": [
+      {"vendor": "nodejs", "product": "node.js", "version": "16.13.0", "source": "sbom_scan"},
+      {"vendor": "expressjs", "product": "express", "version": "4.17.1", "source": "sbom_scan"}
+    ],
+    "reachability": [],
+    "controls": [],
+    "vex_statements": []
+  },
+  {
+    "name": "api-gateway-prod",
+    "asset_type": "application",
+    "environment": "production",
+    "criticality": "critical",
+    "owner": "platform-team",
+    "is_internet_facing": true,
+    "network_zone": "dmz",
+    "tags": {"team": "platform", "region": "eu-west-1"},
+    "software": [
+      {"vendor": "nginx", "product": "nginx", "version": "1.21.3", "source": "sbom_scan"},
+      {"vendor": "openssl", "product": "openssl", "version": "3.0.0", "source": "sbom_scan"}
+    ],
+    "reachability": [
+      {"cve_id": "CVE-2022-0778", "reachability_type": "network", "is_reachable": true, "confidence": 0.90, "tool": "nmap", "evidence_detail": "Port 443 open, TLS 1.3 enabled"}
+    ],
+    "controls": [
+      {"control_type": "waf", "control_name": "Cloudflare WAF", "is_active": true, "effectiveness": 0.85, "source": "api_query"},
+      {"control_type": "ips", "control_name": "AWS Network Firewall", "is_active": true, "effectiveness": 0.70, "source": "api_query"},
+      {"control_type": "edr", "control_name": "SentinelOne", "is_active": true, "effectiveness": 0.80, "source": "api_query"}
+    ],
+    "vex_statements": [
+      {"cve_id": "CVE-2022-0778", "vendor": "openssl", "product": "openssl", "status": "affected", "justification": "Infinite loop in BN_mod_sqrt()", "source": "openvex"}
+    ]
+  },
+  {
+    "name": "legacy-app-server",
+    "asset_type": "server",
+    "environment": "production",
+    "criticality": "medium",
+    "owner": "legacy-team",
+    "is_internet_facing": false,
+    "network_zone": "restricted",
+    "tags": {"team": "legacy", "decommission_planned": "2025-Q4"},
+    "software": [
+      {"vendor": "apache", "product": "tomcat", "version": "8.5.50", "source": "manual"},
+      {"vendor": "oracle", "product": "jdk", "version": "1.8.0_261", "source": "manual"}
+    ],
+    "reachability": [],
+    "controls": [
+      {"control_type": "network_segmentation", "control_name": "Firewall ACL", "is_active": true, "effectiveness": 0.95, "source": "manual"}
+    ],
+    "vex_statements": []
+  }
+]

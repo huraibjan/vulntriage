@@ -1,0 +1,31 @@
+# Policy Configuration — SSVC-inspired Decision Engine
+# =====================================================
+# Override thresholds and SLA values used by the policy engine.
+# Values here take precedence over built-in defaults.
+
+thresholds:
+  # EPSS score thresholds
+  epss_high: 0.5            # Above this → high exploitation risk
+  epss_moderate: 0.1        # Above this → moderate exploitation risk
+
+  # CVSS thresholds
+  cvss_critical: 9.0        # CVSS ≥ 9.0 → critical severity
+  cvss_high: 7.0            # CVSS ≥ 7.0 → high severity
+
+  # ML model thresholds
+  ml_exploit_high: 0.7      # Our model's P(exploit) ≥ 0.7 → high risk
+
+  # Control effectiveness thresholds
+  control_full_effectiveness: 0.9    # ≥ 0.9 → fully mitigated
+  control_partial_effectiveness: 0.3 # ≥ 0.3 → partially mitigated
+
+sla_hours:
+  patch_now: 24              # 1 day
+  mitigate_now: 24           # 1 day
+  patch_window: 720          # 30 days
+  monitor: 2160              # 90 days (re-evaluate)
+  accept: 8760               # 1 year (annual review)
+
+policy:
+  name: ssvc_v1
+  version: "1.0"

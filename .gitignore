@@ -1,0 +1,77 @@
+# ── Python ──────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual environments ───────────────────────
+venv/
+.venv/
+env/
+
+# ── IDE ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Environment ────────────────────────────────
+.env
+.env.local
+
+# ── Data (keep samples, ignore large files) ────
+data/raw/
+data/cache/
+*.parquet
+*.h5
+
+# ── ML artifacts ───────────────────────────────
+models/
+mlruns/
+*.ckpt
+*.pt
+*.bin
+
+# ── Reports (generated) ───────────────────────
+reports/*.png
+reports/metrics.json
+
+# ── OS ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Docker volumes ─────────────────────────────
+pgdata/
+qdrant_data/
+
+# ── Secrets ────────────────────────────────────
+*.pem
+*.key
+.env.*
+!.env.example
+
+# ── Docs (keep thesis docs) ───────────────────
+# Do NOT ignore .docx / .pptx – they are thesis materials
+*.pdf\nexperiment_output.log\nphase2_output.log\ngenerate_ppt_backup.py
+# ── Docs & reports ─────────────────────────────
+*.md
+*.docx
+*.pptx
+*.pdf
+*.log
+reports/
+results/
+generate_docx.py
+generate_docx_v2.py
+generate_ppt.py
+generate_ppt_backup.py
+generate_thesis_figures.py
+run_ensemble.py
+run_ensemble_v2.py
+run_experiments.py
+run_phase2.py
+GA_Progress_Report.md
+package-lock.json
