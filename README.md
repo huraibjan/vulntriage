@@ -686,7 +686,7 @@ poetry run pytest tests/test_leakage_audit.py -v
 
 ## License
 
-Academic research prototype submitted in partial fulfilment of the requirements for the degree of Master of Science in Information Technology, Montclair State University, Spring 2026.
+Academic research submitted in partial fulfilment of the requirements for the degree of Master of Science in Data Science, Montclair State University, Spring 2026.
 
 Made available for research reproducibility. No warranty provided.  
 © 2026 Huraib Jan Sarhandi. All rights reserved.
