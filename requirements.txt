@@ -4,3 +4,12 @@ python-multipart
 pydantic
 requests
 python-dotenv
+openai
+qdrant-client
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+sqlalchemy
+psycopg2-binary
