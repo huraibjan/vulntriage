@@ -29,7 +29,7 @@ data/cache/
 *.h5
 
 # ── ML artifacts ───────────────────────────────
-models/
+models/embeddings_cache/
 mlruns/
 *.ckpt
 *.pt
@@ -75,3 +75,4 @@ run_experiments.py
 run_phase2.py
 GA_Progress_Report.md
 package-lock.json
+!frontend/package-lock.json

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root is two levels up from this file
@@ -57,6 +58,13 @@ class Settings(BaseSettings):
 
     # ── Safety ───────────────────────────────────
     safety_no_exploit_code: bool = True
+
+    @model_validator(mode="after")
+    def fix_postgres_url(self) -> "Settings":
+        """Render provides postgres:// but SQLAlchemy 2.x requires postgresql://."""
+        if self.database_url.startswith("postgres://"):
+            self.database_url = self.database_url.replace("postgres://", "postgresql://", 1)
+        return self
 
     # ── Derived helpers ──────────────────────────
     @property

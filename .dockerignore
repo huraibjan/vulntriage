@@ -16,3 +16,6 @@ experiment_output.log
 phase2_output.log
 *.pdf
 *.docx
+*.pptx
+*.log
+models/embeddings_cache/

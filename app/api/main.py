@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -32,25 +34,34 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── CORS Middleware (allow frontend dev & production origins) ─────────────
+# ── CORS Middleware ────────────────────────────────────────────────────────
+_extra_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+] + _extra_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",   # alt dev
-        "http://localhost:8080",   # nginx / production
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── API Router ────────────────────────────────────────────────────────────
+# All endpoints are defined on this router, then mounted at both / and /api.
+# The frontend calls /api/*, nginx (local) and FastAPI (production) both strip
+# the /api prefix so the same route handlers serve both deployments.
+router = APIRouter()
+
 
 # ── Health ────────────────────────────────────────────────────────────────
 
-@app.get("/health", response_model=HealthResponse)
+@router.get("/health", response_model=HealthResponse)
 def health_check(db: Session = Depends(get_db)):
     """System health check."""
     db_ok = False
@@ -79,10 +90,9 @@ def health_check(db: Session = Depends(get_db)):
 
 # ── Vulnerabilities ──────────────────────────────────────────────────────
 
-@app.get("/v1/vulnerabilities/{vuln_id}", response_model=VulnerabilityRead)
+@router.get("/v1/vulnerabilities/{vuln_id}", response_model=VulnerabilityRead)
 def get_vulnerability(vuln_id: str, db: Session = Depends(get_db)):
     """Get a vulnerability by ID (UUID or CVE ID)."""
-    # Try UUID first
     vuln = None
     try:
         uid = UUID(vuln_id)
@@ -90,7 +100,6 @@ def get_vulnerability(vuln_id: str, db: Session = Depends(get_db)):
     except ValueError:
         pass
 
-    # Try CVE ID
     if not vuln:
         vuln = db.query(Vulnerability).filter_by(cve_id=vuln_id).first()
 
@@ -100,7 +109,7 @@ def get_vulnerability(vuln_id: str, db: Session = Depends(get_db)):
     return VulnerabilityRead.model_validate(vuln)
 
 
-@app.get("/v1/vulnerabilities")
+@router.get("/v1/vulnerabilities")
 def list_vulnerabilities(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(25, ge=1, le=100, description="Items per page"),
@@ -115,7 +124,6 @@ def list_vulnerabilities(
     """Paginated vulnerability listing with search and filters."""
     q = db.query(Vulnerability)
 
-    # Text search across CVE ID, title, description
     if search:
         pattern = f"%{search}%"
         q = q.filter(
@@ -124,13 +132,11 @@ def list_vulnerabilities(
             | (Vulnerability.description.ilike(pattern))
         )
 
-    # CVSS range filters
     if min_cvss is not None:
         q = q.filter(Vulnerability.cvss_base_score >= min_cvss)
     if max_cvss is not None:
         q = q.filter(Vulnerability.cvss_base_score <= max_cvss)
 
-    # KEV filter via subquery on signals
     if has_kev is not None:
         kev_ids = (
             db.query(SignalObservation.vulnerability_id)
@@ -143,17 +149,14 @@ def list_vulnerabilities(
         else:
             q = q.filter(~Vulnerability.id.in_(kev_ids))
 
-    # Count total before pagination
     total = q.count()
 
-    # Sorting
     sort_col = getattr(Vulnerability, sort_by, Vulnerability.published_at)
     if sort_order == "asc":
         q = q.order_by(sort_col.asc().nullslast())
     else:
         q = q.order_by(sort_col.desc().nullsfirst())
 
-    # Paginate
     items = q.offset((page - 1) * per_page).limit(per_page).all()
 
     return {
@@ -167,7 +170,7 @@ def list_vulnerabilities(
 
 # ── Prediction ───────────────────────────────────────────────────────────
 
-@app.post("/v1/predict/{vuln_id}")
+@router.post("/v1/predict/{vuln_id}")
 def predict_vulnerability(
     vuln_id: str,
     asof: Optional[str] = Query(None, description="As-of date YYYY-MM-DD"),
@@ -200,7 +203,7 @@ def predict_vulnerability(
 
 # ── RAG Brief ────────────────────────────────────────────────────────────
 
-@app.post("/v1/brief/{vuln_id}")
+@router.post("/v1/brief/{vuln_id}")
 def generate_brief(
     vuln_id: str,
     asof: Optional[str] = Query(None),
@@ -253,23 +256,18 @@ def generate_brief(
 
 # ── LLM-Powered Brief ───────────────────────────────────────────────────
 
-@app.post("/v1/brief-llm/{vuln_id}")
+@router.post("/v1/brief-llm/{vuln_id}")
 def generate_llm_brief_endpoint(
     vuln_id: str,
     asof: Optional[str] = Query(None, description="As-of date YYYY-MM-DD"),
     db: Session = Depends(get_db),
 ):
-    """Generate an AI-powered vulnerability brief using GPT-4o-mini + RAG.
-
-    Uses Qdrant semantic search for ATT&CK technique retrieval,
-    then GPT-4o-mini for analysis, with safety verification guardrails.
-    """
+    """Generate an AI-powered vulnerability brief using GPT-4o-mini + RAG."""
     from datetime import date
 
     vuln = _resolve_vuln(vuln_id, db)
     asof_date = date.fromisoformat(asof) if asof else date.today()
 
-    # Check OpenAI key is configured
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(
@@ -286,7 +284,6 @@ def generate_llm_brief_endpoint(
         model = load_model()
         p_stage1 = predict(model, features)
 
-        # Get EPSS if available
         epss_signal = (
             db.query(SignalObservation)
             .filter_by(vulnerability_id=vuln.id, signal_type="epss")
@@ -338,12 +335,11 @@ def generate_llm_brief_endpoint(
 
 # ── Dashboard Stats ──────────────────────────────────────────────────────
 
-@app.get("/v1/stats")
+@router.get("/v1/stats")
 def dashboard_stats(db: Session = Depends(get_db)):
     """Aggregated statistics for the dashboard."""
     total_vulns = db.query(func.count(Vulnerability.id)).scalar() or 0
 
-    # CVSS severity buckets
     critical = db.query(func.count(Vulnerability.id)).filter(Vulnerability.cvss_base_score >= 9.0).scalar() or 0
     high = db.query(func.count(Vulnerability.id)).filter(
         Vulnerability.cvss_base_score >= 7.0, Vulnerability.cvss_base_score < 9.0
@@ -355,21 +351,18 @@ def dashboard_stats(db: Session = Depends(get_db)):
         Vulnerability.cvss_base_score > 0, Vulnerability.cvss_base_score < 4.0
     ).scalar() or 0
 
-    # KEV count
     kev_count = (
         db.query(func.count(func.distinct(SignalObservation.vulnerability_id)))
         .filter(SignalObservation.signal_type == "kev", SignalObservation.value_bool == True)
         .scalar() or 0
     )
 
-    # PoC / ExploitDB count
     poc_count = (
         db.query(func.count(func.distinct(SignalObservation.vulnerability_id)))
         .filter(SignalObservation.signal_type.in_(["poc_exploitdb", "metasploit"]))
         .scalar() or 0
     )
 
-    # Recent high-risk (CVSS >= 9.0, last 30 days)
     from datetime import datetime, timedelta
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     recent_critical = (
@@ -379,7 +372,6 @@ def dashboard_stats(db: Session = Depends(get_db)):
         .scalar() or 0
     )
 
-    # Latest EPSS average
     avg_epss_row = (
         db.query(func.avg(SignalObservation.value_num))
         .filter(SignalObservation.signal_type == "epss")
@@ -387,7 +379,6 @@ def dashboard_stats(db: Session = Depends(get_db)):
     )
     avg_epss = round(float(avg_epss_row), 4) if avg_epss_row else None
 
-    # Yearly distribution (for charts)
     yearly = (
         db.query(
             func.extract("year", Vulnerability.published_at).label("year"),
@@ -418,16 +409,12 @@ def dashboard_stats(db: Session = Depends(get_db)):
     }
 
 
-@app.get("/v1/stats/top-risk")
+@router.get("/v1/stats/top-risk")
 def top_risk_vulnerabilities(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
     """Return top-risk vulnerabilities ranked by CVSS × EPSS signal."""
-    # Get vulns with highest CVSS that also have EPSS signals
-    from sqlalchemy.orm import aliased
-
-    # Subquery: latest EPSS per vuln
     latest_epss = (
         db.query(
             SignalObservation.vulnerability_id,
@@ -464,7 +451,7 @@ def top_risk_vulnerabilities(
 
 # ── Reports ──────────────────────────────────────────────────────────────
 
-@app.get("/v1/reports/latest")
+@router.get("/v1/reports/latest")
 def get_latest_report():
     """Return the latest metrics report."""
     settings = get_settings()
@@ -477,26 +464,9 @@ def get_latest_report():
         return json.load(f)
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────
-
-def _resolve_vuln(vuln_id: str, db: Session) -> Vulnerability:
-    """Resolve a vulnerability by UUID or CVE ID."""
-    vuln = None
-    try:
-        uid = UUID(vuln_id)
-        vuln = db.query(Vulnerability).filter_by(id=uid).first()
-    except ValueError:
-        pass
-    if not vuln:
-        vuln = db.query(Vulnerability).filter_by(cve_id=vuln_id).first()
-    if not vuln:
-        raise HTTPException(status_code=404, detail=f"Vulnerability not found: {vuln_id}")
-    return vuln
-
-
 # ── Asset Decision Endpoints ─────────────────────────────────────────────
 
-@app.get("/v1/assets/{asset_id}/decision/{cve_id}")
+@router.get("/v1/assets/{asset_id}/decision/{cve_id}")
 def get_asset_decision(
     asset_id: str,
     cve_id: str,
@@ -528,7 +498,7 @@ def get_asset_decision(
         raise HTTPException(status_code=500, detail=f"Decision engine error: {e}")
 
 
-@app.post("/v1/assets/batch-score")
+@router.post("/v1/assets/batch-score")
 def batch_score_assets(
     payload: dict,
     asof: Optional[str] = Query(None, description="As-of date YYYY-MM-DD"),
@@ -555,8 +525,38 @@ def batch_score_assets(
         raise HTTPException(status_code=500, detail=f"Batch scoring error: {e}")
 
 
-@app.get("/v1/policy")
+@router.get("/v1/policy")
 def get_policy_info():
     """Return the current decision policy description."""
     from app.schemas.decision import get_policy_description
     return get_policy_description()
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────
+
+def _resolve_vuln(vuln_id: str, db: Session) -> Vulnerability:
+    """Resolve a vulnerability by UUID or CVE ID."""
+    vuln = None
+    try:
+        uid = UUID(vuln_id)
+        vuln = db.query(Vulnerability).filter_by(id=uid).first()
+    except ValueError:
+        pass
+    if not vuln:
+        vuln = db.query(Vulnerability).filter_by(cve_id=vuln_id).first()
+    if not vuln:
+        raise HTTPException(status_code=404, detail=f"Vulnerability not found: {vuln_id}")
+    return vuln
+
+
+# ── Mount routes & static files ───────────────────────────────────────────
+# Routes registered at root (/) and /api prefix so the frontend's /api/* calls
+# reach the same handlers whether proxied by nginx or served directly.
+app.include_router(router)
+app.include_router(router, prefix="/api")
+
+# Serve the React SPA last so API routes always take precedence.
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if _FRONTEND_DIR.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
