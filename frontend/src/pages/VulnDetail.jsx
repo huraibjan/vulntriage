@@ -5,9 +5,12 @@ import {
   ArrowLeft, Brain, Shield, Clock, ExternalLink, Cpu, Zap,
   CheckCircle2, XCircle, Loader2, Crosshair, Target,
 } from 'lucide-react'
-import { getVulnerability, predict, getLLMBrief } from '../api'
+import { getVulnerability, predict } from '../api'
 import { severityBadge, severityLabel, formatDate } from '../utils'
 import AIPipeline from '../components/AIPipeline'
+import { DEMO_BRIEF } from '../demoBrief'
+
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
 
 /* Typewriter-style text reveal */
 function StreamingText({ text, speed = 12 }) {
@@ -35,7 +38,7 @@ export default function VulnDetail() {
   const [error, setError]           = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [predLoading, setPredLoading] = useState(false)
-  const [brief, setBrief]           = useState(null)
+  const [brief, setBrief]           = useState(DEMO_MODE ? DEMO_BRIEF : null)
   const [briefLoading, setBriefLoading] = useState(false)
   const [briefError, setBriefError] = useState(null)
   const [activeTab, setActiveTab]   = useState('overview')
@@ -57,12 +60,15 @@ export default function VulnDetail() {
   }
 
   const handleLLMBrief = () => {
+    if (DEMO_MODE) return
     setBriefLoading(true)
     setBriefError(null)
-    getLLMBrief(id)
-      .then(setBrief)
-      .catch((e) => setBriefError(e.message))
-      .finally(() => setBriefLoading(false))
+    import('../api').then(({ getLLMBrief }) =>
+      getLLMBrief(id)
+        .then(setBrief)
+        .catch((e) => setBriefError(e.message))
+        .finally(() => setBriefLoading(false))
+    )
   }
 
   if (loading) {
@@ -127,27 +133,29 @@ export default function VulnDetail() {
       </div>
 
       {/* ── Action Buttons ────────────────────────────────── */}
-      <div className="stagger-in" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', animationDelay: '0.08s' }}>
-        <motion.button
-          className="btn btn-secondary"
-          onClick={handlePredict}
-          disabled={predLoading}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-        >
-          {predLoading ? <Loader2 size={16} className="spin-icon" /> : <Cpu size={16} />}
-          {predLoading ? 'Predicting…' : 'Run ML Prediction'}
-        </motion.button>
-        <motion.button
-          className="btn btn-primary"
-          onClick={handleLLMBrief}
-          disabled={briefLoading}
-          whileHover={{ scale: 1.03, boxShadow: '0 6px 20px rgba(99,102,241,0.25)' }}
-          whileTap={{ scale: 0.97 }}
-        >
-          {briefLoading ? <Loader2 size={16} className="spin-icon" /> : <Brain size={16} />}
-          {briefLoading ? 'Generating…' : 'Generate AI Brief'}
-        </motion.button>
+      <div className="stagger-in" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', animationDelay: '0.08s', alignItems: 'center', flexWrap: 'wrap' }}>
+        {!DEMO_MODE && (
+          <motion.button
+            className="btn btn-secondary"
+            onClick={handlePredict}
+            disabled={predLoading}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            {predLoading ? <Loader2 size={16} className="spin-icon" /> : <Cpu size={16} />}
+            {predLoading ? 'Predicting…' : 'Run ML Prediction'}
+          </motion.button>
+        )}
+        {DEMO_MODE && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.35rem 0.85rem', borderRadius: 'var(--radius)',
+            background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+            fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600,
+          }}>
+            <Brain size={14} /> Portfolio Demo — AI analysis pre-computed
+          </div>
+        )}
       </div>
 
       {/* ── Prediction Result ─────────────────────────────── */}
@@ -365,15 +373,17 @@ export default function VulnDetail() {
                 {/* Mini pipeline preview */}
                 <AIPipeline isRunning={false} />
 
-                <motion.button
-                  className="btn btn-primary"
-                  onClick={handleLLMBrief}
-                  style={{ marginTop: '1.5rem' }}
-                  whileHover={{ scale: 1.04, boxShadow: '0 6px 20px rgba(99,102,241,0.25)' }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <Brain size={16} /> Generate AI Brief
-                </motion.button>
+                {!DEMO_MODE && (
+                  <motion.button
+                    className="btn btn-primary"
+                    onClick={handleLLMBrief}
+                    style={{ marginTop: '1.5rem' }}
+                    whileHover={{ scale: 1.04, boxShadow: '0 6px 20px rgba(99,102,241,0.25)' }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Brain size={16} /> Generate AI Brief
+                  </motion.button>
+                )}
               </motion.div>
             )}
 
@@ -406,9 +416,11 @@ export default function VulnDetail() {
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Model: <span className="mono">{brief.model}</span>
                   </span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Tokens: <span className="mono">{brief.tokens_used}</span>
-                  </span>
+                  {!DEMO_MODE && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Tokens: <span className="mono">{brief.tokens_used}</span>
+                    </span>
+                  )}
                 </motion.div>
 
                 {/* Executive Summary */}

@@ -7,6 +7,8 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ .
+# Bake demo mode into the bundle — disables live OpenAI calls on the public deploy
+ENV VITE_DEMO_MODE=true
 RUN npm run build
 
 # ========================================
