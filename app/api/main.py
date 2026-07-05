@@ -556,10 +556,10 @@ app.include_router(router)
 app.include_router(router, prefix="/api")
 
 # Serve the React SPA last so API routes always take precedence.
-# FRONTEND_DIR env var is set in Dockerfile.render; falls back to sibling path for local dev.
-_FRONTEND_DIR = Path(os.environ.get("FRONTEND_DIR", "")) or (
-    Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-)
+# Try the known Docker path first; fall back to relative path for local dev.
+_FRONTEND_DIR = Path("/app/frontend/dist")
+if not _FRONTEND_DIR.exists():
+    _FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 log.info("frontend_dir_check", path=str(_FRONTEND_DIR), exists=_FRONTEND_DIR.exists())
 
 if _FRONTEND_DIR.exists():
