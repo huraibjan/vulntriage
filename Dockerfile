@@ -41,6 +41,7 @@ COPY alembic.ini .
 COPY models/ models/
 COPY data/ data/
 COPY start.sh .
+RUN chmod +x start.sh
 
 # Copy built React SPA from Stage 1
 COPY --from=frontend-build /frontend/dist frontend/dist/
