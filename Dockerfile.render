@@ -45,6 +45,11 @@ COPY start.sh .
 # Copy built React SPA from Stage 1
 COPY --from=frontend-build /frontend/dist frontend/dist/
 
+# Verify frontend was built — fail the image build loudly if not
+RUN test -f /app/frontend/dist/index.html || (echo "ERROR: frontend/dist/index.html missing" && exit 1)
+
+ENV FRONTEND_DIR=/app/frontend/dist
+
 RUN chmod +x start.sh
 
 EXPOSE 8000

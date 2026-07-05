@@ -556,7 +556,25 @@ app.include_router(router)
 app.include_router(router, prefix="/api")
 
 # Serve the React SPA last so API routes always take precedence.
-_FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+# FRONTEND_DIR env var is set in Dockerfile.render; falls back to sibling path for local dev.
+_FRONTEND_DIR = Path(os.environ.get("FRONTEND_DIR", "")) or (
+    Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+)
+log.info("frontend_dir_check", path=str(_FRONTEND_DIR), exists=_FRONTEND_DIR.exists())
+
 if _FRONTEND_DIR.exists():
     from fastapi.staticfiles import StaticFiles
-    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
+    from fastapi.responses import FileResponse
+
+    # Serve JS/CSS/image assets
+    _assets_dir = _FRONTEND_DIR / "assets"
+    if _assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
+    # Catch-all: any unmatched path serves index.html (SPA client-side routing)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        file_path = _FRONTEND_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(_FRONTEND_DIR / "index.html"))
