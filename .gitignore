@@ -64,6 +64,8 @@ qdrant_data/
 *.log
 reports/
 results/
+generate_cpt_report.py
+generate_ieee_paper.py
 generate_docx.py
 generate_docx_v2.py
 generate_ppt.py
