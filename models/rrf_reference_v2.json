@@ -1,0 +1,22 @@
+{
+  "population": "held-out test partition (published on or after cutoff)",
+  "n_reference": 70831,
+  "n_positives": 277,
+  "cutoff": "2024-06-01",
+  "feature_snapshot_asof": "2026-03-03",
+  "label_policy": "kev_strict",
+  "feature_policy": "no_circular",
+  "rrf_k": 60,
+  "sources": [
+    "xgb_tabular",
+    "xgb_tabemb",
+    "epss"
+  ],
+  "pr_auc": {
+    "xgb_tabular": 0.25069,
+    "xgb_tabemb": 0.30864,
+    "epss": 0.27105,
+    "rrf": 0.36714
+  },
+  "anchors_verified": true
+}

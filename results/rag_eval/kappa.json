@@ -1,0 +1,25 @@
+{
+  "annotator_a": "gpt-4o",
+  "annotator_b": "gpt-5.1",
+  "n_briefs": 150,
+  "criteria": {
+    "technique_relevant": {
+      "a_positive_rate": 0.86,
+      "b_positive_rate": 0.8,
+      "percent_agreement": 0.8733,
+      "cohens_kappa": 0.554
+    },
+    "advisory_cited": {
+      "a_positive_rate": 0.9,
+      "b_positive_rate": 0.96,
+      "percent_agreement": 0.9267,
+      "cohens_kappa": 0.4444
+    },
+    "fabrication_present": {
+      "a_positive_rate": 0.2733,
+      "b_positive_rate": 0.2933,
+      "percent_agreement": 0.7133,
+      "cohens_kappa": 0.2945
+    }
+  }
+}

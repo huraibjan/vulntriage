@@ -1,0 +1,81 @@
+{
+  "experiment": "ensemble_fusion_baselines",
+  "reviewer_item": "R2-#1",
+  "cutoff_date": "2024-06-01",
+  "policy": "kev_strict",
+  "ablation": "no_circular",
+  "note": "All multi-model methods fuse the same three base rankers: xgb_tabular, xgb_tabemb, epss.",
+  "n_test": 70831,
+  "n_positives_test": 277,
+  "optimised_blend_weights": {
+    "xgb_tabular": 0.3333,
+    "xgb_tabemb": 0.3333,
+    "epss": 0.3333
+  },
+  "results": {
+    "RRF (ours, k=60)": {
+      "pr_auc": 0.36714,
+      "roc_auc": 0.97489,
+      "precision@25": 0.84,
+      "precision@50": 0.76,
+      "precision@100": 0.71
+    },
+    "CombSUM (equal-weight avg)": {
+      "pr_auc": 0.35361,
+      "roc_auc": 0.97858,
+      "precision@25": 0.76,
+      "precision@50": 0.8,
+      "precision@100": 0.65
+    },
+    "CombMNZ": {
+      "pr_auc": 0.35361,
+      "roc_auc": 0.97858,
+      "precision@25": 0.76,
+      "precision@50": 0.8,
+      "precision@100": 0.65
+    },
+    "Optimised weighted blend": {
+      "pr_auc": 0.35361,
+      "roc_auc": 0.97858,
+      "precision@25": 0.76,
+      "precision@50": 0.8,
+      "precision@100": 0.65
+    },
+    "Best single model (tab+emb)": {
+      "pr_auc": 0.30864,
+      "roc_auc": 0.9296,
+      "precision@25": 0.88,
+      "precision@50": 0.8,
+      "precision@100": 0.66
+    },
+    "Borda count": {
+      "pr_auc": 0.30648,
+      "roc_auc": 0.97309,
+      "precision@25": 0.76,
+      "precision@50": 0.76,
+      "precision@100": 0.57
+    },
+    "EPSS (single-model baseline)": {
+      "pr_auc": 0.27105,
+      "roc_auc": 0.96281,
+      "precision@25": 0.96,
+      "precision@50": 0.72,
+      "precision@100": 0.44
+    },
+    "Stacking (LogReg meta-learner)": {
+      "pr_auc": 0.2589,
+      "roc_auc": 0.65364,
+      "precision@25": 0.8,
+      "precision@50": 0.76,
+      "precision@100": 0.58
+    },
+    "CVSS (single-model baseline)": {
+      "pr_auc": 0.01104,
+      "roc_auc": 0.75002,
+      "precision@25": 0.08,
+      "precision@50": 0.06,
+      "precision@100": 0.06
+    }
+  },
+  "elapsed_seconds": 12.0
+}

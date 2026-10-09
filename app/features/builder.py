@@ -119,12 +119,14 @@ def build_features_for_vuln(
     for sig in signals:
         sig_date = sig.observed_at.date() if isinstance(sig.observed_at, datetime) else sig.observed_at
 
-        # Leakage check
-        if leakage_audit and sig_date > asof:
-            audit_violations.append(
-                f"Signal {sig.signal_type} observed_at={sig_date} > asof={asof}"
-            )
-            continue  # skip this signal
+        # A signal observed after the as-of date is never visible to the
+        # features, with or without the audit; the audit only records it.
+        if sig_date > asof:
+            if leakage_audit:
+                audit_violations.append(
+                    f"Signal {sig.signal_type} observed_at={sig_date} > asof={asof}"
+                )
+            continue
 
         if sig.signal_type == "epss" and sig.value_num is not None:
             if epss_latest is None or sig_date >= (epss_latest.observed_at.date() if isinstance(epss_latest.observed_at, datetime) else epss_latest.observed_at):

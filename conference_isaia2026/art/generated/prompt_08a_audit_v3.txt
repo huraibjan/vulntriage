@@ -1,0 +1,20 @@
+Use the attached character reference sheet for the skin tone and the teal cardigan sleeve.
+
+Style: semi-realistic vector illustration, identical to the reference: clean flat colour shapes with two-tone shading, soft shadows, no heavy black outlines, no glossy 3D, no photorealism. Palette: ink navy #1B2233, teal #12A594, alert red #E5484D, warm greys.
+
+This is ONE comic panel, a close-up, full-bleed, no border, no caption, no speech bubbles.
+
+Scene: a close-up of a printed sheet of paper pinned with two dark pins to a dark navy felt noticeboard. A woman's right hand with medium-brown skin and a teal cardigan cuff enters from the lower left corner, holding a black magnifying glass by its handle; the hand is anatomically correct with the thumb on top of the handle. No face or body is visible.
+
+The sheet is a typed list. At the top a bold heading reads exactly "MODEL INPUTS". Below it are nine bulleted lines in dark grey sans-serif text, reading exactly, in this order:
+"CVSS base score"
+"EPSS score"
+"Public PoC flag"
+"Metasploit flag"
+"Reference count"
+"Product count"
+"Days since published"
+"Description length"
+"CWE category"
+
+The magnifying glass is held over the third and fourth lines. Seen through the lens, those two lines, "Public PoC flag" and "Metasploit flag", appear enlarged and in bold alert red. All other lines stay dark grey. Spell every line exactly as written and add no other text.

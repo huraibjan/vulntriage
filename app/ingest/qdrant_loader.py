@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
@@ -130,8 +130,9 @@ def upsert_attck_embeddings(
 
     points = []
     for tech, vec in zip(techniques, vectors):
-        # Use UUID for point ID (Qdrant requires UUID or int, not strings like "T1190")
-        point_id = str(uuid4())
+        # Deterministic UUID derived from the technique ID so corpus reloads
+        # are idempotent (Qdrant requires UUID/int point IDs, not "T1190").
+        point_id = str(uuid5(NAMESPACE_URL, f"attck:{tech['technique_id']}"))
         points.append(
             PointStruct(
                 id=point_id,

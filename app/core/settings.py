@@ -59,6 +59,20 @@ class Settings(BaseSettings):
     # ── Safety ───────────────────────────────────
     safety_no_exploit_code: bool = True
 
+    # ── API protection ───────────────────────────
+    # When set, write endpoints and LLM brief generation require X-API-Key.
+    vulntriage_api_key: str | None = None
+    # LLM brief requests allowed per client per minute (0 disables the limit).
+    llm_rate_limit_per_minute: int = 10
+    # Generated briefs are reused for this long before being regenerated.
+    brief_cache_ttl_hours: int = 168
+
+    # ── Asset matching ───────────────────────────
+    # Consult OSV for Debian/Alpine packages so a backported fix is not reported
+    # as affected. Off by default: it sends package names and versions to
+    # api.osv.dev.
+    osv_backport_check: bool = False
+
     @model_validator(mode="after")
     def fix_postgres_url(self) -> "Settings":
         """Render provides postgres:// but SQLAlchemy 2.x requires postgresql://."""

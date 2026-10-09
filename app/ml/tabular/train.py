@@ -224,33 +224,88 @@ def evaluate_model(
     return metrics
 
 
-def predict(
-    model: xgb.XGBClassifier,
-    features: Dict[str, Any],
-) -> float:
-    """Predict exploitability probability for a single vulnerability."""
-    row = {col: features.get(col, 0.0) for col in TABULAR_FEATURES}
-    X = pd.DataFrame([row])[TABULAR_FEATURES].fillna(0).astype(float)
-    prob = model.predict_proba(X)[:, 1][0]
-    return float(prob)
+# ── Model registry (explicit leakage-safe vs diagnostic-leaky) ─────────────
+# leakage_safe  : the no-circular model behind the paper's results — excludes
+#                 exploit-signal features (KEV/PoC/Metasploit/exploit_count).
+# retrospective_leaky : the "full" model that INCLUDES exploit-signal features.
+#                 It effectively reads the KEV label off its own input, so it is
+#                 CIRCULAR and diagnostic-only (used to demonstrate inflation in
+#                 the circularity audit). It must never be a default or deployed.
+LEAKAGE_SAFE_MODEL = "xgb_tuned_tabular_v2.joblib"
+RETROSPECTIVE_LEAKY_MODEL = "xgb_kev_strict_full.joblib"
+DEFAULT_MODEL = LEAKAGE_SAFE_MODEL
+
+
+def model_metadata(path: Path) -> Dict[str, Any]:
+    """Provenance metadata to attach to any prediction output."""
+    name = Path(path).name
+    leaky = name == RETROSPECTIVE_LEAKY_MODEL
+    return {
+        "model_file": name,
+        "model_mode": "retrospective_leaky" if leaky else "leakage_safe",
+        "leakage_safe": not leaky,
+        "feature_policy": "includes exploit-signal features (CIRCULAR)"
+        if leaky else "no exploit-signal features (no_circular)",
+        "dataset_snapshot": "asof=2026-03-03, policy=kev_strict, cutoff=2024-06-01",
+    }
+
+
+def predict(model: xgb.XGBClassifier, features: Dict[str, Any]) -> float:
+    """Predict exploitability using the loaded model's OWN feature set.
+
+    Selecting columns from ``model.get_booster().feature_names`` (rather than the
+    module-level TABULAR_FEATURES) makes inference correct for whichever model is
+    loaded — in particular the 33-feature leakage-safe model — and prevents a
+    silent feature/model mismatch.
+    """
+    cols = list(model.get_booster().feature_names or TABULAR_FEATURES)
+    X = pd.DataFrame([{c: features.get(c, 0.0) for c in cols}])[cols].fillna(0).astype(float)
+    return float(model.predict_proba(X)[:, 1][0])
 
 
 def save_model(model: xgb.XGBClassifier, path: Optional[Path] = None) -> Path:
-    """Save the trained model to disk."""
+    """Save the trained model to disk (defaults to the leakage-safe name)."""
     if path is None:
-        path = get_settings().models_dir / "xgb_kev_strict_full.joblib"
+        path = get_settings().models_dir / DEFAULT_MODEL
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, path)
     log.info("model_saved", path=str(path))
     return path
 
 
-def load_model(path: Optional[Path] = None) -> xgb.XGBClassifier:
-    """Load a trained model from disk."""
+def load_model(
+    path: Optional[Path] = None,
+    *,
+    allow_retrospective_leaky: bool = False,
+) -> xgb.XGBClassifier:
+    """Load a trained model, defaulting to the LEAKAGE-SAFE model everywhere.
+
+    The retrospective leaky (circular) model is refused unless
+    ``allow_retrospective_leaky=True`` is passed explicitly (diagnostic use for
+    the circularity audit only), and its use logs a prominent warning.
+    """
     if path is None:
-        path = get_settings().models_dir / "xgb_kev_strict_full.joblib"
+        path = get_settings().models_dir / DEFAULT_MODEL
+    path = Path(path)
+    is_leaky = path.name == RETROSPECTIVE_LEAKY_MODEL
+    if is_leaky and not allow_retrospective_leaky:
+        raise ValueError(
+            f"Refusing to load the retrospective LEAKY model '{path.name}': it "
+            "includes exploit-signal features (KEV/PoC/Metasploit) and reads the "
+            "label off its own input (circular). It is diagnostic-only for the "
+            "circularity audit. Pass allow_retrospective_leaky=True to use it "
+            "deliberately, or use the leakage-safe default."
+        )
     model = joblib.load(path)
-    log.info("model_loaded", path=str(path))
+    if is_leaky:
+        log.warning(
+            "RETROSPECTIVE_LEAKY_MODEL_LOADED",
+            path=str(path),
+            warning="CIRCULAR model in use — diagnostic only, must NOT be deployed",
+        )
+    else:
+        log.info("model_loaded", path=str(path), model_mode="leakage_safe")
     return model
 
 

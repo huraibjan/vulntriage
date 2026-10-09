@@ -1,0 +1,68 @@
+{
+  "experiment": "asset_aware_triage",
+  "reviewer_item": "R2-#5",
+  "seed": 42,
+  "n_assets": 51,
+  "n_pairs": 5435,
+  "n_unique_cves": 382,
+  "n_kev_pairs": 1286,
+  "synthetic_evidence": {
+    "vex_not_affected": 829,
+    "vex_affected": 275,
+    "reachability_obs": 635
+  },
+  "action_distribution": {
+    "global_only": {
+      "accept": 4040,
+      "mitigate_now": 1286,
+      "monitor": 109
+    },
+    "asset_aware": {
+      "accept": 4257,
+      "monitor": 439,
+      "mitigate_now": 404,
+      "patch_window": 206,
+      "patch_now": 129
+    }
+  },
+  "decision_change_rate": 0.1906,
+  "urgent_actions": {
+    "global_only": 1286,
+    "asset_aware": 533
+  },
+  "de_escalations": 753,
+  "accepted_via_vex_or_controls": 277,
+  "escalations": 0,
+  "kev_urgent_rate": {
+    "global_only": 1.0,
+    "asset_aware": 0.4145
+  },
+  "mean_sla_hours": {
+    "global_only": 6560.6,
+    "asset_aware": 7065.4
+  },
+  "change_matrix": {
+    "accept": {
+      "accept": 3980,
+      "mitigate_now": 0,
+      "monitor": 60,
+      "patch_now": 0,
+      "patch_window": 0
+    },
+    "mitigate_now": {
+      "accept": 183,
+      "mitigate_now": 404,
+      "monitor": 364,
+      "patch_now": 129,
+      "patch_window": 206
+    },
+    "monitor": {
+      "accept": 94,
+      "mitigate_now": 0,
+      "monitor": 15,
+      "patch_now": 0,
+      "patch_window": 0
+    }
+  },
+  "elapsed_seconds": 20.7
+}

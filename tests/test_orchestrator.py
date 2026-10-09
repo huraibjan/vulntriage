@@ -29,11 +29,15 @@ class TestVulnDBProviderParsing:
         rec.update(overrides)
         return rec
 
-    def test_dedupe_key_uses_vuldb_id(self):
+    def test_dedupe_key_prefers_cve_id(self):
+        """Dedup key prefers the canonical cve_id so records about the same
+        CVE from different sources deduplicate together; vuldb_id is the
+        fallback when no CVE is assigned."""
         provider = VulnDBProvider(input_path="dummy.json")
         rec = self._sample_record()
-        key = provider.dedupe_key(rec)
-        assert "12345" in str(key)
+        assert provider.dedupe_key(rec) == "CVE-2024-0001"
+        rec_no_cve = self._sample_record(cve_id=None, vuldb_id="12345")
+        assert provider.dedupe_key(rec_no_cve) == "12345"
 
     def test_provider_name(self):
         provider = VulnDBProvider(input_path="dummy.json")

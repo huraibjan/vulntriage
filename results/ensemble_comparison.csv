@@ -1,0 +1,9 @@
+model,pr_auc,roc_auc,f1,brier,n_features,tuning
+EPSS baseline,0.2710481744012673,-,-,0.006829832775472604,1,N/A
+CVSS baseline,0.011038984278943965,-,-,0.49377639310471405,1,N/A
+XGBoost tabular (tuned),0.2608289011895284,0.9278668595905597,0.31390134529147984,0.0037325043231248856,33,RandomSearchCV(50iter)
+XGBoost tabular+emb (tuned),0.27060304219903025,0.935616793097721,0.3171247357293869,0.003909873776137829,65,RandomSearchCV(50iter)
+Text-only LogReg,0.0183,0.8075,0.0231,0.1665,32,N/A
+Stacking (3way_tab_text_epss),0.1926,0.4048,0.2128,0.0036,meta(9),CV meta-learner: logistic_C10
+Stacking (3way_tabemb_text_epss),0.2074,0.4269,0.2463,0.0035,meta(9),CV meta-learner: logistic
+Stacking (4way_all),0.2556,0.7156,0.2338,0.0035,meta(13),CV meta-learner: logistic_C01

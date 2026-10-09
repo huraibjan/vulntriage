@@ -1,0 +1,262 @@
+{
+  "experiment": "rolling_window_cv",
+  "reviewer_item": "R2-#4",
+  "policy": "kev_strict",
+  "ablation": "no_circular",
+  "asof_date": "2026-03-03",
+  "configs": {
+    "frozen_enrichment": {
+      "n_features": 33,
+      "note": "Paper's no-circular set; epss_score frozen at 2026-03 values (no EPSS history in DB) \u2014 retroactive-enrichment leakage inflates early windows."
+    },
+    "pub_time_safe": {
+      "n_features": 29,
+      "features": [
+        "cvss_attack_complexity",
+        "cvss_attack_vector",
+        "cvss_availability_impact",
+        "cvss_base_score",
+        "cvss_cia_total",
+        "cvss_confidentiality_impact",
+        "cvss_integrity_impact",
+        "cvss_is_network",
+        "cvss_no_interaction",
+        "cvss_no_privs",
+        "cvss_privileges_required",
+        "cvss_scope",
+        "cvss_scope_changed",
+        "cvss_user_interaction",
+        "cvss_version_31",
+        "cwe_auth_bypass",
+        "cwe_count",
+        "cwe_deserialization",
+        "cwe_file_upload",
+        "cwe_information_disclosure",
+        "cwe_injection",
+        "cwe_input_validation",
+        "cwe_memory_safety",
+        "cwe_other",
+        "cwe_path_traversal",
+        "cwe_race_condition",
+        "cwe_ssrf",
+        "description_length",
+        "description_word_count"
+      ],
+      "note": "Only features knowable at CVE publication; leak-free temporal-stability measurement."
+    }
+  },
+  "xgb_params": {
+    "n_estimators": 414,
+    "max_depth": 7,
+    "learning_rate": 0.08742933234856033
+  },
+  "windows": [
+    {
+      "window": 1,
+      "train_cutoff": "2021-06-01",
+      "test_start": "2021-06-01",
+      "test_end": "2022-06-01",
+      "n_train": 26039,
+      "n_test": 22515,
+      "n_train_pos": 231,
+      "n_test_pos": 193,
+      "frozen_enrichment": {
+        "pr_auc": 0.88056,
+        "roc_auc": 0.99829,
+        "brier": 0.00295,
+        "precision@50": 0.96,
+        "recall@50": 0.2487,
+        "precision@100": 0.94,
+        "recall@100": 0.487
+      },
+      "pub_time_safe": {
+        "pr_auc": 0.04991,
+        "roc_auc": 0.74523,
+        "brier": 0.02956,
+        "precision@50": 0.18,
+        "recall@50": 0.0466,
+        "precision@100": 0.11,
+        "recall@100": 0.057
+      },
+      "training_seconds": 1.6
+    },
+    {
+      "window": 2,
+      "train_cutoff": "2022-06-01",
+      "test_start": "2022-06-01",
+      "test_end": "2023-06-01",
+      "n_train": 48554,
+      "n_test": 26714,
+      "n_train_pos": 424,
+      "n_test_pos": 116,
+      "frozen_enrichment": {
+        "pr_auc": 0.70545,
+        "roc_auc": 0.99552,
+        "brier": 0.00357,
+        "precision@50": 0.88,
+        "recall@50": 0.3793,
+        "precision@100": 0.64,
+        "recall@100": 0.5517
+      },
+      "pub_time_safe": {
+        "pr_auc": 0.02129,
+        "roc_auc": 0.75318,
+        "brier": 0.04267,
+        "precision@50": 0.04,
+        "recall@50": 0.0172,
+        "precision@100": 0.02,
+        "recall@100": 0.0172
+      },
+      "training_seconds": 0.9
+    },
+    {
+      "window": 3,
+      "train_cutoff": "2023-06-01",
+      "test_start": "2023-06-01",
+      "test_end": "2024-06-01",
+      "n_train": 75268,
+      "n_test": 34398,
+      "n_train_pos": 540,
+      "n_test_pos": 158,
+      "frozen_enrichment": {
+        "pr_auc": 0.6798,
+        "roc_auc": 0.99357,
+        "brier": 0.00345,
+        "precision@50": 0.92,
+        "recall@50": 0.2911,
+        "precision@100": 0.76,
+        "recall@100": 0.481
+      },
+      "pub_time_safe": {
+        "pr_auc": 0.02111,
+        "roc_auc": 0.74254,
+        "brier": 0.0368,
+        "precision@50": 0.1,
+        "recall@50": 0.0316,
+        "precision@100": 0.05,
+        "recall@100": 0.0316
+      },
+      "training_seconds": 1.2
+    },
+    {
+      "window": 4,
+      "train_cutoff": "2024-06-01",
+      "test_start": "2024-06-01",
+      "test_end": "2025-06-01",
+      "n_train": 109666,
+      "n_test": 42634,
+      "n_train_pos": 698,
+      "n_test_pos": 189,
+      "frozen_enrichment": {
+        "pr_auc": 0.27928,
+        "roc_auc": 0.93498,
+        "brier": 0.00437,
+        "precision@50": 0.7,
+        "recall@50": 0.1852,
+        "precision@100": 0.43,
+        "recall@100": 0.2275
+      },
+      "pub_time_safe": {
+        "pr_auc": 0.02417,
+        "roc_auc": 0.75507,
+        "brier": 0.0379,
+        "precision@50": 0.06,
+        "recall@50": 0.0159,
+        "precision@100": 0.08,
+        "recall@100": 0.0423
+      },
+      "training_seconds": 1.5
+    }
+  ],
+  "aggregates": {
+    "frozen_enrichment": {
+      "pr_auc": {
+        "mean": 0.63627,
+        "std": 0.22011,
+        "min": 0.27928,
+        "max": 0.88056
+      },
+      "roc_auc": {
+        "mean": 0.98059,
+        "std": 0.02639,
+        "min": 0.93498,
+        "max": 0.99829
+      },
+      "brier": {
+        "mean": 0.00358,
+        "std": 0.00051,
+        "min": 0.00295,
+        "max": 0.00437
+      },
+      "precision@50": {
+        "mean": 0.865,
+        "std": 0.09937,
+        "min": 0.7,
+        "max": 0.96
+      },
+      "recall@50": {
+        "mean": 0.27608,
+        "std": 0.07051,
+        "min": 0.1852,
+        "max": 0.3793
+      },
+      "precision@100": {
+        "mean": 0.6925,
+        "std": 0.18539,
+        "min": 0.43,
+        "max": 0.94
+      },
+      "recall@100": {
+        "mean": 0.4368,
+        "std": 0.12398,
+        "min": 0.2275,
+        "max": 0.5517
+      }
+    },
+    "pub_time_safe": {
+      "pr_auc": {
+        "mean": 0.02912,
+        "std": 0.01206,
+        "min": 0.02111,
+        "max": 0.04991
+      },
+      "roc_auc": {
+        "mean": 0.749,
+        "std": 0.00525,
+        "min": 0.74254,
+        "max": 0.75507
+      },
+      "brier": {
+        "mean": 0.03673,
+        "std": 0.00469,
+        "min": 0.02956,
+        "max": 0.04267
+      },
+      "precision@50": {
+        "mean": 0.095,
+        "std": 0.05362,
+        "min": 0.04,
+        "max": 0.18
+      },
+      "recall@50": {
+        "mean": 0.02782,
+        "std": 0.01247,
+        "min": 0.0159,
+        "max": 0.0466
+      },
+      "precision@100": {
+        "mean": 0.065,
+        "std": 0.03354,
+        "min": 0.02,
+        "max": 0.11
+      },
+      "recall@100": {
+        "mean": 0.03703,
+        "std": 0.01457,
+        "min": 0.0172,
+        "max": 0.057
+      }
+    }
+  },
+  "elapsed_seconds": 14.0
+}

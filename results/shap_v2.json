@@ -1,0 +1,47 @@
+{
+  "model": "xgb_tuned_tabular_v2",
+  "method": "TreeSHAP (pred_contribs)",
+  "top_features": [
+    {
+      "feature": "reference_count",
+      "mean_abs_shap": 4.3315,
+      "share": 0.3276
+    },
+    {
+      "feature": "epss_score",
+      "mean_abs_shap": 3.5312,
+      "share": 0.2671
+    },
+    {
+      "feature": "product_count",
+      "mean_abs_shap": 1.007,
+      "share": 0.0762
+    },
+    {
+      "feature": "days_since_published",
+      "mean_abs_shap": 0.9318,
+      "share": 0.0705
+    },
+    {
+      "feature": "description_length",
+      "mean_abs_shap": 0.4969,
+      "share": 0.0376
+    },
+    {
+      "feature": "description_word_count",
+      "mean_abs_shap": 0.4142,
+      "share": 0.0313
+    },
+    {
+      "feature": "cvss_attack_vector",
+      "mean_abs_shap": 0.3967,
+      "share": 0.03
+    },
+    {
+      "feature": "cvss_base_score",
+      "mean_abs_shap": 0.3372,
+      "share": 0.0255
+    }
+  ],
+  "top5_share": 0.779
+}

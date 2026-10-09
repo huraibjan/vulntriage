@@ -131,7 +131,9 @@ def build_evidence_input(
     thresholds = config["thresholds"]
 
     # ── Layer A: Affectedness ────────────────────────────────────────
-    affectedness, vex_status = _resolve_affectedness(asset, vuln, session, asof)
+    resolved = _resolve_affectedness(asset, vuln, session, asof)
+    affectedness, vex_status = resolved[0], resolved[1]
+    affectedness_detail = resolved[2] if len(resolved) > 2 else None
 
     # ── Layer B: Reachability ────────────────────────────────────────
     reachability = _resolve_reachability(asset, vuln, session, asof)
@@ -165,6 +167,7 @@ def build_evidence_input(
     return EvidenceInput(
         affectedness=affectedness,
         vex_status=vex_status,
+        affectedness_detail=affectedness_detail,
         reachability=reachability,
         is_internet_facing=bool(asset.is_internet_facing),
         exploitation=exploitation,
@@ -307,6 +310,13 @@ def score_batch(
     return results
 
 
+def _end_of_day(asof: date) -> datetime:
+    """Observations recorded at any time on the as-of day are in scope."""
+    if isinstance(asof, datetime):
+        return asof
+    return datetime.combine(asof, datetime.max.time())
+
+
 # ── Layer resolvers ──────────────────────────────────────────────────
 
 def _resolve_affectedness(
@@ -314,22 +324,42 @@ def _resolve_affectedness(
     vuln: Vulnerability,
     session: Session,
     asof: date,
-) -> Tuple[Affectedness, Optional[str]]:
-    """Determine affectedness from VEX statements and SBOM matches."""
-    # Check VEX statements
+) -> Tuple[Affectedness, Optional[str], Optional[str]]:
+    """Determine affectedness from VEX statements and version-aware SBOM matching.
+
+    Returns ``(affectedness, evidence_tag, detail)``. A VEX statement is applied
+    only when it is scoped to this asset or names a component installed on it;
+    otherwise the installed version is compared with the CVE's vulnerable ranges.
+    """
+    from app.features.affectedness import (
+        MATCH_NOT_IN_RANGE,
+        MATCH_PRODUCT_ONLY,
+        MATCH_VERSION,
+        best_match,
+        vex_applies,
+    )
+
+    components = (
+        session.query(AssetSoftwareObs)
+        .filter(
+            AssetSoftwareObs.asset_id == asset.id,
+            AssetSoftwareObs.observed_at <= _end_of_day(asof),
+        )
+        .all()
+    )
+
     vex_obs = (
         session.query(VexStatementObs)
         .filter(
             VexStatementObs.vulnerability_id == vuln.id,
-            VexStatementObs.observed_at <= asof,
+            VexStatementObs.observed_at <= _end_of_day(asof),
         )
         .order_by(VexStatementObs.observed_at.desc())
         .all()
     )
-
-    # If asset_id-specific VEX exists, prefer it
-    asset_vex = [v for v in vex_obs if v.asset_id == asset.id]
-    best_vex = asset_vex[0] if asset_vex else (vex_obs[0] if vex_obs else None)
+    applicable = [v for v in vex_obs if vex_applies(v, asset.id, components)]
+    asset_vex = [v for v in applicable if v.asset_id == asset.id]
+    best_vex = asset_vex[0] if asset_vex else (applicable[0] if applicable else None)
 
     if best_vex:
         status_map = {
@@ -338,28 +368,27 @@ def _resolve_affectedness(
             "under_investigation": Affectedness.UNDER_INVESTIGATION,
             "fixed": Affectedness.NOT_AFFECTED,  # fixed = no longer affected
         }
+        scope = "asset-scoped" if best_vex.asset_id == asset.id else "matched to installed product"
+        reason = best_vex.justification or best_vex.action_statement or "no justification given"
         return (
             status_map.get(best_vex.status, Affectedness.UNKNOWN),
             best_vex.status,
+            f"VEX status: {best_vex.status} ({scope}; {reason})",
         )
 
-    # Check SBOM for product match
-    from app.features.actionability import _extract_vuln_products
-    vuln_products = _extract_vuln_products(vuln)
-    if vuln_products:
-        sw_match = (
-            session.query(AssetSoftwareObs)
-            .filter(
-                AssetSoftwareObs.asset_id == asset.id,
-                AssetSoftwareObs.observed_at <= asof,
-            )
-            .all()
+    match = best_match(components, vuln)
+    if match["level"] == MATCH_VERSION:
+        return Affectedness.AFFECTED, "sbom_version_match", f"SBOM: {match['detail']}"
+    if match["level"] == MATCH_PRODUCT_ONLY:
+        return Affectedness.AFFECTED, "sbom_match", f"SBOM: {match['detail']}"
+    if match["level"] == MATCH_NOT_IN_RANGE:
+        return (
+            Affectedness.NOT_AFFECTED,
+            "sbom_version_not_in_range",
+            f"SBOM: {match['detail']}",
         )
-        for sw in sw_match:
-            if (sw.vendor.lower(), sw.product.lower()) in vuln_products:
-                return Affectedness.AFFECTED, "sbom_match"
 
-    return Affectedness.UNKNOWN, None
+    return Affectedness.UNKNOWN, None, None
 
 
 def _resolve_reachability(
@@ -374,7 +403,7 @@ def _resolve_reachability(
         .filter(
             ReachabilityObs.asset_id == asset.id,
             ReachabilityObs.vulnerability_id == vuln.id,
-            ReachabilityObs.observed_at <= asof,
+            ReachabilityObs.observed_at <= _end_of_day(asof),
         )
         .order_by(ReachabilityObs.observed_at.desc())
         .all()
@@ -404,7 +433,7 @@ def _resolve_weaponization(
         session.query(SignalObservation)
         .filter(
             SignalObservation.vulnerability_id == vuln.id,
-            SignalObservation.observed_at <= asof,
+            SignalObservation.observed_at <= _end_of_day(asof),
         )
         .all()
     )
@@ -446,7 +475,7 @@ def _resolve_controls(
         session.query(ControlObs)
         .filter(
             ControlObs.asset_id == asset.id,
-            ControlObs.observed_at <= asof,
+            ControlObs.observed_at <= _end_of_day(asof),
         )
         .filter(
             (ControlObs.vulnerability_id == vuln.id)

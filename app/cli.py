@@ -105,50 +105,103 @@ def ingest_vuldb(
     console.print("[bold green]✅ VulnDB ingestion complete[/]")
 
 
+def _print_feed_counts(counts) -> None:
+    """Print one line of inserted-versus-skipped counts for a feed."""
+    detail = ", ".join(f"{k}={v}" for k, v in counts.detail.items())
+    console.print(
+        f"  [green]✓[/] {counts.feed}: inserted={counts.inserted} skipped={counts.skipped} "
+        f"(existing={counts.skipped_existing}, unknown_cve={counts.skipped_unknown_cve}, "
+        f"malformed={counts.skipped_malformed}) [{detail}]"
+    )
+
+
+def _parse_score_date(asof: Optional[str]) -> Optional[date]:
+    """Validate an optional YYYY-MM-DD option; exits with an error if malformed."""
+    if not asof:
+        return None
+    try:
+        return date.fromisoformat(asof)
+    except ValueError:
+        console.print(f"[red]Invalid date '{asof}'; expected YYYY-MM-DD.[/]")
+        raise typer.Exit(code=2)
+
+
 @ingest_app.command("epss")
 def ingest_epss(
-    asof: str = typer.Option(default=None, help="As-of date YYYY-MM-DD"),
+    asof: str = typer.Option(default=None, help="Score date YYYY-MM-DD (default: current file)"),
+    source: str = typer.Option(default=None, help="URL or local .csv/.csv.gz path (default: daily EPSS file)"),
 ):
-    """Fetch EPSS scores for ingested CVEs."""
+    """Append one day of EPSS scores; re-running the same score date inserts nothing."""
     setup_logging(fmt="console")
     console.print("[bold blue]📥 Fetching EPSS scores...[/]")
 
-    from app.db.models import Vulnerability
     from app.db.session import get_session
-    from app.ingest.enrichment_providers import EPSSProvider
-    from app.ingest.orchestrator import ingest_signal_records
+    from app.ingest.enrichment_providers import SqlAlchemySignalStore, refresh_epss
 
+    score_date = _parse_score_date(asof)
     with get_session() as session:
-        cve_ids = [v.cve_id for v in session.query(Vulnerability).all() if v.cve_id]
-
-    if not cve_ids:
-        console.print("  [yellow]No CVEs found to enrich[/]")
-        return
-
-    provider = EPSSProvider()
-    records = provider.fetch(cve_ids=cve_ids, asof=asof or date.today().isoformat())
-
-    with get_session() as session:
-        n = ingest_signal_records(records, session)
-        console.print(f"  [green]✓[/] Ingested {n} EPSS observations")
+        counts = refresh_epss(SqlAlchemySignalStore(session), score_date=score_date, source=source)
+    _print_feed_counts(counts)
 
 
 @ingest_app.command("kev")
-def ingest_kev():
-    """Fetch CISA KEV catalog."""
+def ingest_kev(
+    source: str = typer.Option(default=None, help="URL or local JSON path (default: CISA catalog)"),
+):
+    """Append new CISA KEV listings and ransomware-use status changes."""
     setup_logging(fmt="console")
     console.print("[bold blue]📥 Fetching CISA KEV catalog...[/]")
 
-    from app.ingest.enrichment_providers import KEVProvider
-    from app.ingest.orchestrator import ingest_signal_records
     from app.db.session import get_session
-
-    provider = KEVProvider()
-    records = provider.fetch()
+    from app.ingest.enrichment_providers import SqlAlchemySignalStore, refresh_kev
 
     with get_session() as session:
-        n = ingest_signal_records(records, session)
-        console.print(f"  [green]✓[/] Ingested {n} KEV observations")
+        counts = refresh_kev(SqlAlchemySignalStore(session), source=source)
+    _print_feed_counts(counts)
+
+
+@app.command("refresh-feeds")
+def refresh_feeds(
+    asof: str = typer.Option(default=None, help="EPSS score date YYYY-MM-DD (default: current file)"),
+    epss_source: str = typer.Option(default=None, help="Override EPSS URL or local path"),
+    kev_source: str = typer.Option(default=None, help="Override KEV URL or local path"),
+):
+    """Refresh EPSS and CISA KEV; append-only and safe to run daily.
+
+    Each feed is committed in its own transaction, so a failure of one does
+    not discard the other. The exit status is non-zero if either feed fails,
+    which lets a scheduler detect the failure.
+    """
+    setup_logging(fmt="console")
+    log = get_logger("cli.refresh_feeds")
+    console.print("[bold blue]📥 Refreshing enrichment feeds (EPSS, CISA KEV)...[/]")
+
+    from app.db.session import get_session
+    from app.ingest.enrichment_providers import (
+        SqlAlchemySignalStore,
+        refresh_epss,
+        refresh_kev,
+    )
+
+    score_date = _parse_score_date(asof)
+    jobs = (
+        ("epss", lambda store: refresh_epss(store, score_date=score_date, source=epss_source)),
+        ("kev", lambda store: refresh_kev(store, source=kev_source)),
+    )
+    failed = []
+    for feed_name, job in jobs:
+        try:
+            with get_session() as session:
+                counts = job(SqlAlchemySignalStore(session))
+            _print_feed_counts(counts)
+        except Exception as e:
+            log.error("feed_refresh_failed", feed=feed_name, error=str(e))
+            console.print(f"  [red]✗[/] {feed_name}: failed ({e}); nothing was written for this feed")
+            failed.append(feed_name)
+
+    if failed:
+        raise typer.Exit(code=1)
+    console.print("[bold green]✅ Feed refresh complete[/]")
 
 
 @ingest_app.command("attck")
@@ -478,12 +531,19 @@ def evaluate(
         test_df[["vuln_id", "exploited"]],
     )
 
-    # Load model
+    # Load model (leakage-safe by default)
     try:
         model = load_model()
     except FileNotFoundError:
         console.print("[red]No trained model found. Run 'train tabular' first.[/]")
         return
+
+    # Align the evaluation matrix to the loaded model's own feature set — the
+    # leakage-safe model uses fewer columns than prepare_data emits.
+    if hasattr(X_test, "reindex"):
+        X_test = X_test.reindex(
+            columns=list(model.get_booster().feature_names), fill_value=0
+        ).fillna(0)
 
     # Model metrics
     model_metrics = evaluate_model(model, X_test, y_test)
@@ -689,9 +749,9 @@ def evaluate_slices_cmd(
 
     # Load model and predict
     try:
-        model = load_model()
-        feature_cols = [c for c in test_df.columns if c not in ("vuln_id", "cve_id", "published_at", "exploited")]
-        X_test = test_df[feature_cols].fillna(0)
+        model = load_model()  # leakage-safe by default
+        feature_cols = list(model.get_booster().feature_names)
+        X_test = test_df.reindex(columns=feature_cols, fill_value=0).fillna(0)
         test_df = test_df.copy()
         test_df["y_pred"] = model.predict(X_test)
         test_df["y_prob"] = model.predict_proba(X_test)[:, 1]
@@ -841,7 +901,7 @@ def decide_cmd(
 def ingest_sbom(
     path: str = typer.Option(default=..., help="Path to SBOM JSON file"),
     asset_id: str = typer.Option(default=..., help="Asset UUID"),
-    format: str = typer.Option(default="cyclonedx", help="SBOM format: cyclonedx, spdx"),
+    format: Optional[str] = typer.Option(default=None, help="cyclonedx or spdx (auto-detected if omitted)"),
 ):
     """Import an SBOM file and associate components with an asset."""
     setup_logging(fmt="console")
@@ -855,6 +915,19 @@ def ingest_sbom(
     with get_session() as session:
         n = ingest_sbom_file(path, UUID_type(asset_id), session, format=format)
         console.print(f"  [green]✓[/] Imported {n} software components")
+
+
+@app.command("build-rrf-reference")
+def build_rrf_reference_cmd():
+    """Rebuild the held-out reference population that the API ranks against."""
+    setup_logging(fmt="console")
+    from app.ml.fusion import build_reference
+
+    meta = build_reference()
+    console.print(
+        f"  [green]✓[/] Reference built on {meta['n_reference']:,} held-out CVEs; "
+        f"published anchors reproduced: {meta['pr_auc']}"
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════

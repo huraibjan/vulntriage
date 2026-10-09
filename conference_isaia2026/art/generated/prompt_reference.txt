@@ -1,0 +1,9 @@
+Character reference sheet for a comic strip, on a plain off-white background (#F6F7F9), no text, no labels, no captions.
+
+Style: semi-realistic vector illustration. Clean flat colour shapes with two-tone shading (a base tone and one shadow tone), natural adult proportions about seven heads tall, believable anatomy, well-drawn hands, soft ground shadows. No heavy black outlines, no glossy 3D render, no anime, no chibi, no photorealism. It should look like a professional editorial illustration drawn by a human illustrator. Limited palette: ink navy #1B2233, teal #12A594, alert red #E5484D, amber #F5A524, blue #3E63DD, warm grey, natural skin and hair tones.
+
+The character: "Maya", a vulnerability analyst in her early thirties. Medium-brown skin, dark brown hair in a low bun with a few loose strands, round thin-framed glasses, a teal cardigan over a white top, navy trousers, simple flat shoes, a lanyard with an ID badge around her neck. Calm, intelligent, approachable.
+
+Show the same woman five times in a row, evenly spaced, full body, identical outfit and face in each: (1) standing facing the viewer, neutral; (2) three-quarter view holding a coffee cup, slight smile; (3) seated on an office chair in three-quarter view with hands as if typing, focused; (4) standing in profile pointing to her right, speaking; (5) standing with a small shrug, honest expression.
+
+In the lower right corner, at desk scale next to her, a small friendly desk robot assistant: rounded off-white body with teal accents, a single dark display face with two simple eyes, about 30 cm tall, not cartoonish.

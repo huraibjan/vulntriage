@@ -6,9 +6,10 @@ Supports:
 - OpenVEX JSON
 - Manual CSV import
 
-For the thesis prototype, this primarily ingests synthetic / sample data
-to demonstrate the affectedness layer.  In production, it would connect
-to Syft, Trivy, Grype, or an SBOM API.
+Accepts SBOMs as produced by Syft, Trivy or cdxgen. Components are resolved to
+an NVD vendor/product identity (from their CPE, or from the package name when
+it maps to exactly one known vendor) so they can be matched against CVE
+configurations by `app.features.affectedness`.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -29,216 +30,328 @@ from app.schemas.asset_schemas import SBOMImport, SoftwareComponent, VexImport, 
 log = get_logger(__name__)
 
 
+# ── Component identity resolution ──────────────────────────────────────
+
+_known_products: Optional[Dict[str, Set[str]]] = None
+
+
+def known_products(session: Session) -> Dict[str, Set[str]]:
+    """Map of NVD product name → vendors that publish it, built from the CVE corpus."""
+    global _known_products
+    if _known_products is None:
+        from sqlalchemy import text as sa_text
+
+        from app.features.affectedness import norm
+
+        rows = session.execute(sa_text(
+            "SELECT DISTINCT lower(p->>'vendor'), lower(p->>'product') "
+            "FROM vulnerability, jsonb_array_elements(affected_products_json) p "
+            "WHERE jsonb_typeof(affected_products_json) = 'array'"
+        )).all()
+        index: Dict[str, Set[str]] = {}
+        for vendor, product in rows:
+            if vendor and product:
+                index.setdefault(norm(product), set()).add(norm(vendor))
+        _known_products = index
+    return _known_products
+
+
+def _purl_parts(purl: Optional[str]) -> Tuple[str, str]:
+    """(namespace, name) from a Package URL such as pkg:maven/org.apache/log4j-core@2.14.1."""
+    if not purl or not purl.startswith("pkg:"):
+        return "", ""
+    body = purl[4:].split("@", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    segments = [seg for seg in body.split("/") if seg]
+    if len(segments) < 2:
+        return "", ""
+    return "/".join(segments[1:-1]), segments[-1]
+
+
+def resolve_identity(
+    comp: SoftwareComponent,
+    cpe_candidates: List[str],
+    products: Dict[str, Set[str]],
+) -> Tuple[SoftwareComponent, float]:
+    """Attach the best NVD vendor/product identity to a component.
+
+    Returns the component and a confidence: 1.0 for a CPE whose vendor/product
+    is known to NVD, 0.8 for an unverified CPE, 0.6 when the package name maps
+    to exactly one NVD vendor, 0.3 when no identity could be established.
+    """
+    from app.features.affectedness import norm, parse_cpe
+
+    parsed = [(c, parse_cpe(c)) for c in cpe_candidates]
+    parsed = [(c, d) for c, d in parsed if d]
+    for cpe, d in parsed:
+        if d["vendor"] in products.get(d["product"], set()):
+            return comp.model_copy(update={
+                "cpe": cpe, "vendor": d["vendor"], "product": d["product"]}), 1.0
+    if parsed:
+        cpe, d = parsed[0]
+        return comp.model_copy(update={
+            "cpe": cpe, "vendor": d["vendor"], "product": d["product"]}), 0.8
+
+    _, purl_name = _purl_parts(comp.purl)
+    for name in (norm(comp.product), norm(purl_name)):
+        vendors = products.get(name, set())
+        if name and len(vendors) == 1:
+            return comp.model_copy(update={
+                "vendor": next(iter(vendors)), "product": name}), 0.6
+    return comp, 0.3
+
+
 # ── SBOM Ingestion ─────────────────────────────────────────────────────
+
+def detect_sbom_format(data: Dict[str, Any]) -> str:
+    if str(data.get("bomFormat", "")).lower() == "cyclonedx" or "components" in data:
+        return "cyclonedx"
+    if "spdxVersion" in data or "packages" in data:
+        return "spdx"
+    raise ValueError("Unrecognised SBOM: expected CycloneDX or SPDX JSON")
+
+
+def ingest_sbom_data(
+    data: Dict[str, Any],
+    asset_id: UUID,
+    session: Session,
+    *,
+    format: Optional[str] = None,
+    replace: bool = True,
+) -> Dict[str, Any]:
+    """Store an SBOM document as the software inventory of an asset.
+
+    With ``replace`` (default) the asset's previously imported SBOM components
+    are superseded, so the inventory reflects the latest document.
+    """
+    asset = session.query(Asset).filter_by(id=asset_id).first()
+    if not asset:
+        raise ValueError(f"Asset {asset_id} not found")
+
+    fmt = format or detect_sbom_format(data)
+    if fmt == "cyclonedx":
+        parsed = _parse_cyclonedx(data)
+    elif fmt == "spdx":
+        parsed = _parse_spdx(data)
+    else:
+        raise ValueError(f"Unsupported SBOM format: {fmt}")
+
+    products = known_products(session)
+    if replace:
+        session.query(AssetSoftwareObs).filter(
+            AssetSoftwareObs.asset_id == asset_id,
+            AssetSoftwareObs.source.in_(["cyclonedx", "spdx"]),
+        ).delete(synchronize_session=False)
+
+    now = datetime.utcnow()
+    resolved = 0
+    for comp, candidates in parsed:
+        comp, confidence = resolve_identity(comp, candidates, products)
+        if confidence >= 0.6:
+            resolved += 1
+        session.add(AssetSoftwareObs(
+            asset_id=asset_id,
+            vendor=(comp.vendor or "unknown")[:128],
+            product=(comp.product or "unknown")[:128],
+            version=(comp.version or None) and comp.version[:64],
+            cpe=(comp.cpe or None) and comp.cpe[:256],
+            purl=(comp.purl or None) and comp.purl[:512],
+            install_path=comp.install_path,
+            observed_at=now,
+            confidence=confidence,
+            source=comp.source,
+        ))
+
+    session.commit()
+    summary = {"components": len(parsed), "identity_resolved": resolved, "format": fmt}
+    log.info("sbom_ingested", asset_id=str(asset_id), **summary)
+    return summary
+
 
 def ingest_sbom_file(
     path: str,
     asset_id: UUID,
     session: Session,
     *,
-    format: str = "cyclonedx",
+    format: Optional[str] = None,
 ) -> int:
-    """Parse an SBOM file and create AssetSoftwareObs records.
-
-    Parameters
-    ----------
-    path : str
-        Path to the SBOM JSON file.
-    asset_id : UUID
-        Asset to associate the components with.
-    session : Session
-        Active SQLAlchemy session.
-    format : str
-        SBOM format: "cyclonedx" or "spdx".
-
-    Returns
-    -------
-    int
-        Number of components ingested.
-    """
+    """Parse an SBOM file and store its components for an asset."""
     file_path = Path(path)
     if not file_path.exists():
         raise FileNotFoundError(f"SBOM file not found: {path}")
-
     with open(file_path) as f:
         data = json.load(f)
-
-    # Verify asset exists
-    asset = session.query(Asset).filter_by(id=asset_id).first()
-    if not asset:
-        raise ValueError(f"Asset {asset_id} not found")
-
-    if format == "cyclonedx":
-        components = _parse_cyclonedx(data)
-    elif format == "spdx":
-        components = _parse_spdx(data)
-    else:
-        raise ValueError(f"Unsupported SBOM format: {format}")
-
-    inserted = 0
-    for comp in components:
-        obs = AssetSoftwareObs(
-            asset_id=asset_id,
-            vendor=comp.vendor,
-            product=comp.product,
-            version=comp.version,
-            cpe=comp.cpe,
-            purl=comp.purl,
-            install_path=comp.install_path,
-            observed_at=datetime.utcnow(),
-            source=comp.source,
-        )
-        session.add(obs)
-        inserted += 1
-
-    session.commit()
-    log.info("sbom_ingested", asset_id=str(asset_id), components=inserted, format=format)
-    return inserted
+    return ingest_sbom_data(data, asset_id, session, format=format)["components"]
 
 
-def _parse_cyclonedx(data: Dict[str, Any]) -> List[SoftwareComponent]:
-    """Parse CycloneDX JSON into SoftwareComponent list."""
-    components: List[SoftwareComponent] = []
+def _parse_cyclonedx(data: Dict[str, Any]) -> List[Tuple[SoftwareComponent, List[str]]]:
+    """Parse CycloneDX JSON into components with their candidate CPEs."""
+    out: List[Tuple[SoftwareComponent, List[str]]] = []
 
-    for comp in data.get("components", []):
-        # Extract vendor from group or publisher
-        vendor = comp.get("group", comp.get("publisher", "unknown"))
-        product = comp.get("name", "unknown")
-        version = comp.get("version")
+    def walk(components: List[Dict[str, Any]]) -> None:
+        for comp in components or []:
+            if comp.get("type") == "file":
+                continue  # file entries are not installable software
+            supplier = comp.get("supplier") or {}
+            vendor = (
+                comp.get("group") or comp.get("publisher")
+                or (supplier.get("name") if isinstance(supplier, dict) else None)
+                or "unknown"
+            )
+            candidates: List[str] = []
+            if comp.get("cpe"):
+                candidates.append(comp["cpe"])
+            for prop in comp.get("properties", []) or []:
+                if prop.get("name") in ("cpe", "syft:cpe23") and prop.get("value"):
+                    candidates.append(prop["value"])
+            out.append((SoftwareComponent(
+                vendor=str(vendor),
+                product=str(comp.get("name", "unknown")),
+                version=comp.get("version"),
+                cpe=candidates[0] if candidates else None,
+                purl=comp.get("purl"),
+                source="cyclonedx",
+            ), candidates))
+            walk(comp.get("components", []))
 
-        # Extract CPE from properties or externalReferences
-        cpe = None
-        for prop in comp.get("properties", []):
-            if prop.get("name") == "cpe":
-                cpe = prop.get("value")
-                break
-
-        # Extract PURL
-        purl = comp.get("purl")
-
-        components.append(SoftwareComponent(
-            vendor=vendor,
-            product=product,
-            version=version,
-            cpe=cpe,
-            purl=purl,
-            source="cyclonedx",
-        ))
-
-    return components
+    walk(data.get("components", []))
+    return out
 
 
-def _parse_spdx(data: Dict[str, Any]) -> List[SoftwareComponent]:
-    """Parse simplified SPDX JSON into SoftwareComponent list."""
-    components: List[SoftwareComponent] = []
-
-    for pkg in data.get("packages", []):
-        vendor = pkg.get("supplier", pkg.get("originator", "unknown"))
-        product = pkg.get("name", "unknown")
-        version = pkg.get("versionInfo")
-
-        # SPDX external refs may contain CPE/PURL
-        cpe = None
+def _parse_spdx(data: Dict[str, Any]) -> List[Tuple[SoftwareComponent, List[str]]]:
+    """Parse SPDX JSON into components with their candidate CPEs."""
+    out: List[Tuple[SoftwareComponent, List[str]]] = []
+    for pkg in data.get("packages", []) or []:
+        vendor = pkg.get("supplier") or pkg.get("originator") or "unknown"
+        vendor = str(vendor).replace("Organization:", "").replace("Person:", "").strip()
+        candidates: List[str] = []
         purl = None
-        for ref in pkg.get("externalRefs", []):
-            if ref.get("referenceType") == "cpe23Type":
-                cpe = ref.get("referenceLocator")
+        for ref in pkg.get("externalRefs", []) or []:
+            if ref.get("referenceType") == "cpe23Type" and ref.get("referenceLocator"):
+                candidates.append(ref["referenceLocator"])
             elif ref.get("referenceType") == "purl":
                 purl = ref.get("referenceLocator")
-
-        components.append(SoftwareComponent(
-            vendor=vendor,
-            product=product,
-            version=version,
-            cpe=cpe,
+        out.append((SoftwareComponent(
+            vendor=vendor or "unknown",
+            product=str(pkg.get("name", "unknown")),
+            version=pkg.get("versionInfo"),
+            cpe=candidates[0] if candidates else None,
             purl=purl,
             source="spdx",
-        ))
-
-    return components
+        ), candidates))
+    return out
 
 
 # ── VEX Ingestion ──────────────────────────────────────────────────────
+
+def detect_vex_format(data: Dict[str, Any]) -> str:
+    if "statements" in data:
+        return "openvex"
+    if "vulnerabilities" in data and "document" in data:
+        return "csaf_vex"
+    raise ValueError("Unrecognised VEX document: expected OpenVEX or CSAF VEX JSON")
+
+
+def ingest_vex_data(
+    data: Dict[str, Any],
+    session: Session,
+    *,
+    format: Optional[str] = None,
+    asset_id: Optional[UUID] = None,
+) -> Dict[str, Any]:
+    """Store VEX statements.
+
+    When ``asset_id`` is given the statements are scoped to that asset. Unscoped
+    statements are applied only to assets that have the named product installed.
+    """
+    fmt = format or detect_vex_format(data)
+    if fmt == "openvex":
+        statements = _parse_openvex(data)
+    elif fmt == "csaf_vex":
+        statements = _parse_csaf_vex(data)
+    else:
+        raise ValueError(f"Unsupported VEX format: {fmt}")
+
+    if asset_id is not None and not session.query(Asset).filter_by(id=asset_id).first():
+        raise ValueError(f"Asset {asset_id} not found")
+
+    inserted, unknown_cves = 0, []
+    now = datetime.utcnow()
+    for stmt in statements:
+        vuln = session.query(Vulnerability).filter_by(cve_id=stmt.cve_id).first()
+        if not vuln:
+            unknown_cves.append(stmt.cve_id)
+            continue
+        session.add(VexStatementObs(
+            vulnerability_id=vuln.id,
+            asset_id=asset_id,
+            vendor=(stmt.vendor or "unknown")[:128],
+            product=(stmt.product or "unknown")[:128],
+            status=stmt.status.value if hasattr(stmt.status, "value") else stmt.status,
+            justification=(
+                stmt.justification.value
+                if stmt.justification and hasattr(stmt.justification, "value")
+                else stmt.justification
+            ),
+            impact_statement=stmt.impact_statement,
+            action_statement=stmt.action_statement,
+            observed_at=now,
+            source=stmt.source,
+        ))
+        inserted += 1
+
+    session.commit()
+    summary = {
+        "statements": inserted,
+        "skipped_unknown_cves": sorted(set(unknown_cves)),
+        "format": fmt,
+        "scope": "asset" if asset_id else "product",
+    }
+    log.info("vex_ingested", **{k: v for k, v in summary.items() if k != "skipped_unknown_cves"})
+    return summary
+
 
 def ingest_vex_file(
     path: str,
     session: Session,
     *,
-    format: str = "openvex",
+    format: Optional[str] = None,
+    asset_id: Optional[UUID] = None,
 ) -> int:
-    """Parse a VEX file and create VexStatementObs records.
-
-    Parameters
-    ----------
-    path : str
-        Path to the VEX JSON file.
-    session : Session
-        Active SQLAlchemy session.
-    format : str
-        VEX format: "openvex" or "csaf_vex".
-
-    Returns
-    -------
-    int
-        Number of statements ingested.
-    """
+    """Parse a VEX file and store its statements."""
     file_path = Path(path)
     if not file_path.exists():
         raise FileNotFoundError(f"VEX file not found: {path}")
-
     with open(file_path) as f:
         data = json.load(f)
-
-    if format == "openvex":
-        statements = _parse_openvex(data)
-    elif format == "csaf_vex":
-        statements = _parse_csaf_vex(data)
-    else:
-        raise ValueError(f"Unsupported VEX format: {format}")
-
-    inserted = 0
-    for stmt in statements:
-        # Look up vulnerability
-        vuln = session.query(Vulnerability).filter_by(cve_id=stmt.cve_id).first()
-        if not vuln:
-            log.debug("vex_no_vuln", cve_id=stmt.cve_id)
-            continue
-
-        obs = VexStatementObs(
-            vulnerability_id=vuln.id,
-            vendor=stmt.vendor,
-            product=stmt.product,
-            status=stmt.status.value if hasattr(stmt.status, 'value') else stmt.status,
-            justification=stmt.justification.value if stmt.justification and hasattr(stmt.justification, 'value') else stmt.justification,
-            impact_statement=stmt.impact_statement,
-            action_statement=stmt.action_statement,
-            observed_at=datetime.utcnow(),
-            source=stmt.source,
-        )
-        session.add(obs)
-        inserted += 1
-
-    session.commit()
-    log.info("vex_ingested", statements=inserted, format=format)
-    return inserted
+    return ingest_vex_data(data, session, format=format, asset_id=asset_id)["statements"]
 
 
 def _parse_openvex(data: Dict[str, Any]) -> List[VexStatement]:
     """Parse OpenVEX JSON."""
     statements: List[VexStatement] = []
 
-    for stmt in data.get("statements", []):
-        vuln_id = stmt.get("vulnerability", {}).get("name", "")  # CVE ID
-        if not vuln_id.startswith("CVE-"):
-            # Try alternate location
-            vuln_id = stmt.get("vulnerability", "")
+    for stmt in data.get("statements", []) or []:
+        vulnerability = stmt.get("vulnerability", "")
+        if isinstance(vulnerability, dict):
+            vuln_id = vulnerability.get("name") or vulnerability.get("@id") or ""
+        else:
+            vuln_id = str(vulnerability)
+        vuln_id = vuln_id.rsplit("/", 1)[-1]
+        if not vuln_id.upper().startswith("CVE-"):
+            continue
 
-        for product in stmt.get("products", []):
-            product_id = product if isinstance(product, str) else product.get("@id", "unknown")
-
+        for product in stmt.get("products", []) or []:
+            if isinstance(product, str):
+                product_id = product
+            else:
+                identifiers = product.get("identifiers") or {}
+                product_id = (
+                    identifiers.get("purl") or identifiers.get("cpe23")
+                    or product.get("@id") or "unknown"
+                )
             statements.append(VexStatement(
-                cve_id=vuln_id,
-                vendor="unknown",  # OpenVEX doesn't always have vendor
+                cve_id=vuln_id.upper(),
+                vendor="unknown",
                 product=product_id,
                 status=stmt.get("status", "under_investigation"),
                 justification=stmt.get("justification"),
@@ -251,34 +364,47 @@ def _parse_openvex(data: Dict[str, Any]) -> List[VexStatement]:
 
 
 def _parse_csaf_vex(data: Dict[str, Any]) -> List[VexStatement]:
-    """Parse CSAF VEX JSON (simplified)."""
-    statements: List[VexStatement] = []
+    """Parse CSAF VEX JSON (product names resolved from the product tree)."""
+    names: Dict[str, str] = {}
 
-    for vuln in data.get("vulnerabilities", []):
+    def collect(branches: List[Dict[str, Any]]) -> None:
+        for br in branches or []:
+            prod = br.get("product")
+            if prod and prod.get("product_id"):
+                helper = prod.get("product_identification_helper") or {}
+                names[prod["product_id"]] = (
+                    helper.get("purl") or helper.get("cpe") or prod.get("name") or prod["product_id"]
+                )
+            collect(br.get("branches", []))
+
+    tree = data.get("product_tree", {}) or {}
+    collect(tree.get("branches", []))
+    for prod in tree.get("full_product_names", []) or []:
+        if prod.get("product_id"):
+            names.setdefault(prod["product_id"], prod.get("name") or prod["product_id"])
+
+    status_map = {
+        "known_not_affected": "not_affected",
+        "known_affected": "affected",
+        "fixed": "fixed",
+        "under_investigation": "under_investigation",
+    }
+    statements: List[VexStatement] = []
+    for vuln in data.get("vulnerabilities", []) or []:
         cve_id = vuln.get("cve")
         if not cve_id:
             continue
-
-        for status_block in vuln.get("product_status", {}).items():
-            status_type, product_ids = status_block
-            # Map CSAF status types to VEX statuses
-            status_map = {
-                "known_not_affected": "not_affected",
-                "known_affected": "affected",
-                "fixed": "fixed",
-                "under_investigation": "under_investigation",
-            }
-            vex_status = status_map.get(status_type, "under_investigation")
-
+        for status_type, product_ids in (vuln.get("product_status", {}) or {}).items():
+            if status_type not in status_map:
+                continue
             for pid in (product_ids if isinstance(product_ids, list) else [product_ids]):
                 statements.append(VexStatement(
                     cve_id=cve_id,
                     vendor="unknown",
-                    product=str(pid),
-                    status=vex_status,
+                    product=str(names.get(pid, pid)),
+                    status=status_map[status_type],
                     source="csaf_vex",
                 ))
-
     return statements
 
 
@@ -289,91 +415,21 @@ def check_affectedness(
     cve_id: str,
     session: Session,
 ) -> Dict[str, Any]:
-    """Check if a CVE affects an asset based on SBOM and VEX data.
+    """Affectedness of an asset for a CVE, using the decision engine's own logic."""
+    from app.features.policy_engine import _resolve_affectedness
 
-    Returns affectedness assessment with evidence.
-    """
     vuln = session.query(Vulnerability).filter_by(cve_id=cve_id).first()
     if not vuln:
-        return {
-            "status": "unknown",
-            "reason": f"CVE {cve_id} not found in database",
-        }
+        return {"status": "unknown", "reason": f"CVE {cve_id} not found in database"}
+    asset = session.query(Asset).filter_by(id=asset_id).first()
+    if not asset:
+        return {"status": "unknown", "reason": f"Asset {asset_id} not found"}
 
-    # Check VEX first (most authoritative)
-    vex_statements = (
-        session.query(VexStatementObs)
-        .filter_by(vulnerability_id=vuln.id)
-        .all()
-    )
-
-    # Check SBOM for asset
-    asset_software = (
-        session.query(AssetSoftwareObs)
-        .filter_by(asset_id=asset_id)
-        .all()
-    )
-
-    # Get affected products from vulnerability
-    affected_products = vuln.affected_products_json or []
-
-    # Match SBOM components against affected products
-    sbom_match = False
-    matched_component = None
-    for sw in asset_software:
-        for prod in affected_products:
-            if (
-                sw.vendor.lower() == prod.get("vendor", "").lower()
-                and sw.product.lower() == prod.get("product", "").lower()
-            ):
-                sbom_match = True
-                matched_component = {
-                    "vendor": sw.vendor,
-                    "product": sw.product,
-                    "version": sw.version,
-                    "cpe": sw.cpe,
-                }
-                break
-        if sbom_match:
-            break
-
-    # Check VEX overrides
-    for vex in vex_statements:
-        if vex.status == "not_affected":
-            return {
-                "status": "not_affected",
-                "reason": f"VEX: {vex.justification or 'vendor confirms not affected'}",
-                "source": vex.source,
-                "sbom_match": sbom_match,
-                "matched_component": matched_component,
-            }
-        elif vex.status == "fixed":
-            return {
-                "status": "fixed",
-                "reason": f"VEX: fix available — {vex.action_statement or 'update to latest version'}",
-                "source": vex.source,
-                "sbom_match": sbom_match,
-                "matched_component": matched_component,
-            }
-
-    if sbom_match:
-        return {
-            "status": "affected",
-            "reason": "SBOM component matches affected product",
-            "matched_component": matched_component,
-        }
-
-    if not asset_software:
-        return {
-            "status": "unknown",
-            "reason": "No SBOM data for this asset",
-        }
-
+    status, tag, detail = _resolve_affectedness(asset, vuln, session, datetime.utcnow().date())
     return {
-        "status": "not_affected",
-        "reason": "No SBOM component matches affected products",
-        "asset_components": len(asset_software),
-        "vuln_affected_products": len(affected_products),
+        "status": getattr(status, "value", status),
+        "evidence": tag,
+        "reason": detail or "No VEX statement or SBOM component matches this CVE",
     }
 
 
