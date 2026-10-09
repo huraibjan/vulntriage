@@ -9,6 +9,7 @@ Tables
 - model_run           – experiment metadata (git sha, params, metrics)
 - prediction          – per-vulnerability scored output
 - embedding_meta      – pointer from vuln → Qdrant point
+- brief_cache         – generated LLM briefs, reused to bound API spend
 """
 
 from __future__ import annotations
@@ -192,3 +193,21 @@ class EmbeddingMeta(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     vulnerability = relationship("Vulnerability", back_populates="embedding_meta")
+
+
+# ── Brief cache ───────────────────────────────────────────────────────────
+
+class BriefCache(Base):
+    """A generated LLM brief, keyed by CVE, pipeline mode and model."""
+    __tablename__ = "brief_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    vulnerability_id = Column(UUID(as_uuid=True), ForeignKey("vulnerability.id", ondelete="CASCADE"), nullable=False)
+    mode = Column(String(32), nullable=False)        # baseline | verified
+    llm_model = Column(String(64), nullable=False)
+    payload_json = Column(JSONB, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("vulnerability_id", "mode", "llm_model", name="uq_brief_cache_key"),
+    )

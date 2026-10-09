@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Vulnerabilities from './pages/Vulnerabilities'
 import VulnDetail from './pages/VulnDetail'
+import Assets from './pages/Assets'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/vulnerabilities" element={<Vulnerabilities />} />
           <Route path="/vuln/:id" element={<VulnDetail />} />
+          <Route path="/inventory" element={<Assets />} />
         </Routes>
       </main>
     </div>

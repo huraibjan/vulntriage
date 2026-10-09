@@ -161,3 +161,164 @@ class TestToFeatureDict:
         m2 = parse_cvss_vector(vec2)
         d2 = m2.to_feature_dict()
         assert d2["cvss_scope_changed"] == 0.0
+
+
+# ─────────────────────────────────────────────────────────────
+#  CVSS v4.0 vectors (projected onto the v3 feature schema)
+# ─────────────────────────────────────────────────────────────
+
+V4_BASE = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
+
+# Full-length form as published by NVD: every optional metric is present,
+# and the supplemental Safety metric reuses the v3 Scope abbreviation "S".
+V4_NVD_FULL = (
+    "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:H/SI:H/SA:N"
+    "/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X"
+    "/MSC:X/MSI:X/MSA:X/S:P/AU:Y/R:A/V:X/RE:M/U:Amber"
+)
+
+
+class TestParseCVSSv4Vector:
+    """Test CVSS v4.0 parsing and its projection onto v3 metric fields."""
+
+    def test_base_vector_is_valid(self):
+        m = parse_cvss_vector(V4_BASE)
+        assert m.is_valid is True
+        assert m.parse_error is None
+        assert m.version == "4.0"
+        assert m.raw_vector == V4_BASE
+        assert (m.AV, m.AC, m.PR, m.UI) == ("N", "L", "N", "N")
+        assert (m.C, m.I, m.A) == ("H", "H", "H")
+        assert m.S == "U"
+
+    def test_vulnerable_system_impacts_map_to_cia(self):
+        m = parse_cvss_vector(
+            "CVSS:4.0/AV:L/AC:H/AT:P/PR:H/UI:N/VC:L/VI:N/VA:H/SC:N/SI:N/SA:N"
+        )
+        assert m.is_valid is True
+        assert (m.AV, m.AC, m.PR) == ("L", "H", "H")
+        assert (m.C, m.I, m.A) == ("L", "N", "H")
+
+    @pytest.mark.parametrize("ui,expected", [("N", "N"), ("P", "R"), ("A", "R")])
+    def test_user_interaction_mapping(self, ui, expected):
+        """Passive and active interaction both map to v3 'required'."""
+        m = parse_cvss_vector(V4_BASE.replace("UI:N", f"UI:{ui}"))
+        assert m.is_valid is True
+        assert m.UI == expected
+
+    @pytest.mark.parametrize(
+        "subsequent,expected",
+        [
+            ("SC:N/SI:N/SA:N", "U"),
+            ("SC:L/SI:N/SA:N", "C"),
+            ("SC:N/SI:H/SA:N", "C"),
+            ("SC:N/SI:N/SA:L", "C"),
+            ("SC:H/SI:H/SA:H", "C"),
+        ],
+    )
+    def test_scope_derived_from_subsequent_system_impact(self, subsequent, expected):
+        m = parse_cvss_vector(V4_BASE.replace("SC:N/SI:N/SA:N", subsequent))
+        assert m.is_valid is True
+        assert m.S == expected
+
+    def test_subsequent_impact_does_not_inflate_cia(self):
+        """SC/SI/SA drive scope only; C/I/A come from VC/VI/VA."""
+        m = parse_cvss_vector(
+            "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:N/SC:H/SI:H/SA:H"
+        )
+        assert m.is_valid is True
+        assert (m.C, m.I, m.A) == ("N", "N", "N")
+        assert m.to_feature_dict()["cvss_cia_total"] == 0.0
+
+    def test_nvd_full_vector_ignores_optional_metrics(self):
+        """Supplemental 'S' (Safety) must not be read as v3 Scope."""
+        m = parse_cvss_vector(V4_NVD_FULL)
+        assert m.is_valid is True
+        assert m.UI == "R"
+        assert m.S == "C"
+        assert (m.C, m.I, m.A) == ("H", "H", "N")
+
+    def test_supplemental_safety_does_not_set_scope(self):
+        m = parse_cvss_vector(V4_BASE + "/S:P")
+        assert m.is_valid is True
+        assert m.S == "U"
+
+    def test_attack_requirements_has_no_feature(self):
+        """AT has no v3 counterpart: it must not change any feature."""
+        d_n = parse_cvss_vector(V4_BASE).to_feature_dict()
+        d_p = parse_cvss_vector(V4_BASE.replace("AT:N", "AT:P")).to_feature_dict()
+        assert d_n == d_p
+        assert not any("requirement" in k or k.endswith("_at") for k in d_n)
+
+    def test_missing_base_metric(self):
+        m = parse_cvss_vector(V4_BASE.replace("/SA:N", ""))
+        assert m.is_valid is False
+        assert "Missing metrics" in m.parse_error
+        assert "SA" in m.parse_error
+
+    def test_invalid_value(self):
+        m = parse_cvss_vector(V4_BASE.replace("UI:N", "UI:R"))
+        assert m.is_valid is False
+        assert "Invalid value for UI" in m.parse_error
+
+    def test_duplicate_metric(self):
+        m = parse_cvss_vector(V4_BASE + "/AV:L")
+        assert m.is_valid is False
+        assert "Duplicate" in m.parse_error
+
+    def test_malformed_component(self):
+        m = parse_cvss_vector(V4_BASE + "/garbage")
+        assert m.is_valid is False
+        assert "Invalid metric component" in m.parse_error
+
+    def test_v3_metrics_under_v4_prefix_rejected(self):
+        m = parse_cvss_vector("CVSS:4.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+        assert m.is_valid is False
+
+    def test_v4_metrics_under_v3_prefix_rejected(self):
+        m = parse_cvss_vector(V4_BASE.replace("CVSS:4.0", "CVSS:3.1"))
+        assert m.is_valid is False
+
+    def test_unsupported_version_rejected(self):
+        m = parse_cvss_vector(V4_BASE.replace("CVSS:4.0", "CVSS:4.1"))
+        assert m.is_valid is False
+
+
+class TestV4FeatureDict:
+    """A v4.0 vector must yield the v3 feature schema and encodings."""
+
+    def test_same_keys_as_v3(self):
+        v3 = parse_cvss_vector("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+        v4 = parse_cvss_vector(V4_NVD_FULL)
+        assert set(v4.to_feature_dict()) == set(v3.to_feature_dict())
+
+    def test_equivalent_vectors_give_identical_features(self):
+        v3 = parse_cvss_vector("CVSS:3.1/AV:A/AC:H/PR:L/UI:R/S:C/C:L/I:H/A:N")
+        v4 = parse_cvss_vector(
+            "CVSS:4.0/AV:A/AC:H/AT:N/PR:L/UI:A/VC:L/VI:H/VA:N/SC:L/SI:N/SA:N"
+        )
+        assert v4.is_valid is True
+        assert v4.to_feature_dict() == v3.to_feature_dict()
+
+    def test_explicit_encodings(self):
+        d = parse_cvss_vector(V4_NVD_FULL).to_feature_dict()
+        assert d == {
+            "cvss_attack_vector": 3.0,
+            "cvss_attack_complexity": 1.0,
+            "cvss_privileges_required": 2.0,
+            "cvss_user_interaction": 0.0,
+            "cvss_scope": 1.0,
+            "cvss_confidentiality_impact": 2.0,
+            "cvss_integrity_impact": 2.0,
+            "cvss_availability_impact": 0.0,
+            "cvss_is_network": 1.0,
+            "cvss_no_privs": 1.0,
+            "cvss_no_interaction": 0.0,
+            "cvss_scope_changed": 1.0,
+            "cvss_cia_total": 4.0,
+        }
+
+    def test_no_negative_ordinals(self):
+        """Every projected value must be a known v3 value (ordinal != -1)."""
+        d = parse_cvss_vector(V4_NVD_FULL).to_feature_dict()
+        assert all(v >= 0.0 for v in d.values())

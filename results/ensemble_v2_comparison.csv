@@ -1,0 +1,10 @@
+model,pr_auc,roc_auc,f1_optimized,brier,delta_vs_epss,beats_epss
+Rank Fusion (RRF),0.36714,0.97489,0.4065,0.003838,0.0961,True
+Equal-weight Blend,0.35306,0.976387,0.3825,0.003134,0.082,True
+Blend (no text),0.330498,0.975123,0.3833,0.0032,0.0594,True
+XGBoost tab+emb,0.308637,0.929599,0.3715,0.003249,0.0376,True
+Optimized Blend,0.308216,0.926196,0.3808,0.003199,0.0372,True
+EPSS baseline,0.271048,0.962806,0.293,0.00683,-0.0,False
+XGBoost tab+emb (calibrated),0.256968,0.743624,0.3529,0.003205,-0.0141,False
+XGBoost tabular,0.250687,0.924977,0.3264,0.00384,-0.0204,False
+XGBoost tabular (calibrated),0.197608,0.714981,0.3139,0.003404,-0.0734,False

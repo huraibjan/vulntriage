@@ -12,6 +12,23 @@ import { DEMO_BRIEF } from '../demoBrief'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
 
+// SSVC decision presentation (labels/colours only; the DECISION itself and all
+// thresholds come from the backend engine — the UI never re-derives them).
+const ACTION_LABELS = {
+  patch_now: 'PATCH NOW', mitigate_now: 'MITIGATE NOW',
+  patch_window: 'PATCH (WINDOW)', monitor: 'MONITOR', accept: 'ACCEPT',
+}
+const ACTION_COLORS = {
+  patch_now: '#dc2626', mitigate_now: '#dc2626', patch_window: '#d97706',
+  monitor: '#2563eb', accept: '#059669',
+}
+function fmtSla(h) {
+  if (h == null) return '—'
+  if (h <= 48) return `${h} h`
+  const d = Math.round(h / 24)
+  return d >= 365 ? `${Math.round(d / 365)} yr` : `${d} days`
+}
+
 /* Typewriter-style text reveal */
 function StreamingText({ text, speed = 12 }) {
   const [displayed, setDisplayed] = useState('')
@@ -42,6 +59,7 @@ export default function VulnDetail() {
   const [briefLoading, setBriefLoading] = useState(false)
   const [briefError, setBriefError] = useState(null)
   const [activeTab, setActiveTab]   = useState('overview')
+  const [verifyMode, setVerifyMode] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -59,12 +77,13 @@ export default function VulnDetail() {
       .finally(() => setPredLoading(false))
   }
 
-  const handleLLMBrief = () => {
+  const handleLLMBrief = (opts = {}) => {
     if (DEMO_MODE) return
     setBriefLoading(true)
     setBriefError(null)
+    setBrief(null)
     import('../api').then(({ getLLMBrief }) =>
-      getLLMBrief(id)
+      getLLMBrief(id, { verify: verifyMode, ...opts })
         .then(setBrief)
         .catch((e) => setBriefError(e.message))
         .finally(() => setBriefLoading(false))
@@ -143,7 +162,7 @@ export default function VulnDetail() {
             whileTap={{ scale: 0.97 }}
           >
             {predLoading ? <Loader2 size={16} className="spin-icon" /> : <Cpu size={16} />}
-            {predLoading ? 'Predicting…' : 'Run ML Prediction'}
+            {predLoading ? 'Scoring…' : 'Rank Exploitability'}
           </motion.button>
         )}
         {DEMO_MODE && (
@@ -167,52 +186,92 @@ export default function VulnDetail() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
           >
-            {/* Main score */}
+            {/* Fused rank (Reciprocal Rank Fusion) — a rank, not a probability */}
             <div>
-              <div className="detail-label">Exploitation Probability</div>
-              <motion.div
-                style={{ fontSize: '2rem', fontWeight: 800, color: probColor(prediction.p_final), letterSpacing: '-0.03em' }}
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: 'spring', stiffness: 300, delay: 0.2 }}
-              >
-                {(prediction.p_final * 100).toFixed(1)}%
-              </motion.div>
-              {/* Visual bar */}
-              <div style={{ width: '100%', height: 6, borderRadius: 3, background: '#e2e5ee', marginTop: 6, overflow: 'hidden' }}>
-                <motion.div
-                  style={{ height: '100%', borderRadius: 3, background: probColor(prediction.p_final) }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.max(prediction.p_final * 100, 1)}%` }}
-                  transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
-                />
-              </div>
+              <div className="detail-label">Exploitability Rank (RRF)</div>
+              {prediction.rrf ? (
+                <>
+                  <motion.div
+                    style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.03em',
+                      color: probColor(prediction.rrf.percentile / 100 >= 0.99 ? 0.9 : prediction.rrf.percentile / 100 >= 0.9 ? 0.5 : 0.1) }}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, delay: 0.2 }}
+                  >
+                    #{prediction.rrf.rank.toLocaleString()}
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 6 }}>
+                      of {prediction.rrf.n_reference.toLocaleString()}
+                    </span>
+                  </motion.div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Percentile {prediction.rrf.percentile} · ranked against held-out reference CVEs
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    A rank, not a calibrated probability
+                  </div>
+                </>
+              ) : <div style={{ color: 'var(--text-secondary)' }}>—</div>}
             </div>
 
-            {/* Risk label */}
-            <div>
-              <div className="detail-label">Risk Level</div>
-              <div style={{
-                fontSize: '0.95rem',
-                fontWeight: 700,
-                color: prediction.p_final > 0.7 ? '#dc2626' : prediction.p_final > 0.4 ? '#d97706' : prediction.p_final > 0.1 ? '#2563eb' : '#059669',
-              }}>
-                {prediction.p_final > 0.7 ? '🔴 Critical' : prediction.p_final > 0.4 ? '🟡 High' : prediction.p_final > 0.1 ? '🔵 Moderate' : '🟢 Low'}
+            {/* The three fused rank sources */}
+            {prediction.rrf && (
+              <div>
+                <div className="detail-label">Rank Sources</div>
+                {[['xgb_tabular', 'XGBoost tabular'], ['xgb_tabemb', 'XGBoost + text embedding'], ['epss', 'EPSS']].map(([k, label]) => (
+                  <div key={k} style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    {label}: <span className="mono" style={{ fontWeight: 600 }}>#{prediction.rrf.sources[k].rank.toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
+            )}
+
+            {/* SSVC recommended action (authoritative — from backend engine) */}
+            <div>
+              <div className="detail-label">Recommended Action</div>
+              {prediction.decision ? (
+                <div style={{ fontSize: '0.95rem', fontWeight: 700,
+                  color: ACTION_COLORS[prediction.decision.action] || '#334155' }}>
+                  {ACTION_LABELS[prediction.decision.action] || prediction.decision.action}
+                  <span style={{ fontWeight: 500, color: 'var(--text-secondary)',
+                    fontSize: '0.78rem', marginLeft: 6 }}>
+                    · SLA {fmtSla(prediction.decision.sla_hours)}
+                  </span>
+                </div>
+              ) : <div style={{ color: 'var(--text-secondary)' }}>—</div>}
             </div>
 
-            {/* Stage 1 score */}
+            {/* Standard CISA SSVC outcome, from derived decision points */}
+            {prediction.ssvc_cisa && (
+              <div>
+                <div className="detail-label">CISA SSVC</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>{prediction.ssvc_cisa.outcome}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: 190 }}>
+                  {Object.entries(prediction.ssvc_cisa.decision_points || {})
+                    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v.value}`).join(' · ')}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>inputs derived, not CISA-assessed</div>
+              </div>
+            )}
+
+            {/* Raw tabular model output — the ML input to the decision engine */}
             <div>
-              <div className="detail-label">Stage-1 (XGBoost)</div>
+              <div className="detail-label">Tabular Model Output</div>
               <div className="mono" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {(prediction.p_stage1 * 100).toFixed(1)}%
+                {Number(prediction.tabular_model_output ?? prediction.p_stage1).toFixed(3)}
               </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>uncalibrated</div>
             </div>
 
-            {/* Model */}
+            {/* Model mode badge (leakage-safe vs leaky) */}
             <div>
               <div className="detail-label">Model</div>
-              <div className="mono" style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>RRF Ensemble</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: '0.78rem', fontWeight: 600,
+                padding: '2px 8px', borderRadius: 6,
+                background: prediction.model?.leakage_safe === false ? '#fee2e2' : '#dcfce7',
+                color: prediction.model?.leakage_safe === false ? '#991b1b' : '#166534' }}>
+                {prediction.model?.leakage_safe === false ? '⚠ leaky' : '🛡 leakage-safe'}
+              </div>
             </div>
 
             {/* As-of */}
@@ -223,6 +282,18 @@ export default function VulnDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* SSVC decision factors (backend rationale — no client-side thresholds) */}
+      {prediction?.decision?.rationale?.length > 0 && (
+        <div style={{ margin: '-2px 0 10px', fontSize: '0.82rem',
+          color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          <b style={{ color: 'var(--text-primary)' }}>Decision factors:</b>{' '}
+          {prediction.decision.rationale.join(' · ')}
+          <span style={{ marginLeft: 8, opacity: 0.85 }}>
+            (exploitation: {prediction.decision.exploitation}; {prediction.decision.scope})
+          </span>
+        </div>
+      )}
 
       {/* ── Tabs ──────────────────────────────────────────── */}
       <div className="tabs stagger-in" style={{ animationDelay: '0.16s' }}>
@@ -374,9 +445,22 @@ export default function VulnDetail() {
                 <AIPipeline isRunning={false} />
 
                 {!DEMO_MODE && (
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', justifyContent: 'center',
+                    maxWidth: 520, margin: '1.25rem auto 0', fontSize: '0.82rem', color: 'var(--text-secondary)',
+                    textAlign: 'left', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={verifyMode} style={{ marginTop: 3 }}
+                      onChange={(e) => setVerifyMode(e.target.checked)} />
+                    <span>
+                      <b style={{ color: 'var(--text-primary)' }}>High-precision mode.</b>{' '}
+                      A verification pass drops retrieved ATT&CK techniques the model cannot confirm.
+                      Fewer mappings, and no mapping at all when none is confirmed.
+                    </span>
+                  </label>
+                )}
+                {!DEMO_MODE && (
                   <motion.button
                     className="btn btn-primary"
-                    onClick={handleLLMBrief}
+                    onClick={() => handleLLMBrief()}
                     style={{ marginTop: '1.5rem' }}
                     whileHover={{ scale: 1.04, boxShadow: '0 6px 20px rgba(99,102,241,0.25)' }}
                     whileTap={{ scale: 0.97 }}
@@ -421,7 +505,37 @@ export default function VulnDetail() {
                       Tokens: <span className="mono">{brief.tokens_used}</span>
                     </span>
                   )}
+                  {brief.mode && (
+                    <span className="badge badge-info">
+                      {brief.mode === 'verified' ? 'High-precision (verified)' : 'Standard retrieval'}
+                    </span>
+                  )}
+                  {brief.cached && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Cached · generated {formatDate(brief.generated_at)}
+                    </span>
+                  )}
+                  {!DEMO_MODE && (
+                    <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}
+                      onClick={() => { setBrief(null); setBriefError(null) }}>
+                      New brief
+                    </button>
+                  )}
                 </motion.div>
+
+                {/* Abstention: verification confirmed no technique */}
+                {brief.pipeline && brief.pipeline.n_techniques === 0 && (
+                  <div className="card brief-section" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--warning)' }}>
+                    <h3><Crosshair size={16} /> No ATT&CK technique confirmed</h3>
+                    <p>The verification pass did not confirm any retrieved technique for this CVE, so no mapping is asserted.</p>
+                  </div>
+                )}
+                {brief.pipeline?.unendorsed_technique_ids?.length > 0 && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '-0.5rem 0 1rem' }}>
+                    Retrieved but not used by the model in its analysis:{' '}
+                    <span className="mono">{brief.pipeline.unendorsed_technique_ids.join(', ')}</span>
+                  </div>
+                )}
 
                 {/* Executive Summary */}
                 {brief.llm_analysis?.executive_summary && (

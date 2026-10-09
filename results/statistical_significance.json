@@ -1,0 +1,190 @@
+{
+  "experiment": "statistical_significance",
+  "n_test": 70831,
+  "n_positives": 277,
+  "n_bootstrap": 10000,
+  "n_permutation": 10000,
+  "seed": 42,
+  "ci_method": "percentile (BCa not used; see docstring)",
+  "resampling_unit": "CVE (paired across methods)",
+  "primary_comparison": "RRF_vs_EPSS_pointintime",
+  "multiple_comparison_correction": "Holm-Bonferroni over the 4-comparison family",
+  "note_topk": "Precision@100 reported as point estimate only; no bootstrap CI (top-k on a single global ranked list is ill-behaved under row bootstrap).",
+  "per_method": {
+    "RRF_frozen": {
+      "pr_auc": 0.36714,
+      "pr_auc_95ci": [
+        0.30691,
+        0.4278
+      ],
+      "precision_at_100": 0.71
+    },
+    "EPSS_frozen": {
+      "pr_auc": 0.27105,
+      "pr_auc_95ci": [
+        0.22025,
+        0.32394
+      ],
+      "precision_at_100": 0.44
+    },
+    "CombSUM_frozen": {
+      "pr_auc": 0.35361,
+      "pr_auc_95ci": [
+        0.29485,
+        0.41495
+      ],
+      "precision_at_100": 0.65
+    },
+    "RRF_pit": {
+      "pr_auc": 0.26785,
+      "pr_auc_95ci": [
+        0.21348,
+        0.32636
+      ],
+      "precision_at_100": 0.56
+    },
+    "EPSS_pit": {
+      "pr_auc": 0.2581,
+      "pr_auc_95ci": [
+        0.2041,
+        0.31578
+      ],
+      "precision_at_100": 0.53
+    },
+    "tab_with_epss": {
+      "pr_auc": 0.26788,
+      "pr_auc_95ci": [
+        0.21367,
+        0.32632
+      ],
+      "precision_at_100": 0.55
+    },
+    "tab_without_epss": {
+      "pr_auc": 0.03442,
+      "pr_auc_95ci": [
+        0.02224,
+        0.05707
+      ],
+      "precision_at_100": 0.16
+    }
+  },
+  "comparisons": [
+    {
+      "comparison": "RRF_vs_EPSS_frozen",
+      "is_primary": false,
+      "method_a": "RRF_frozen",
+      "pr_auc_a": 0.36714,
+      "ci_a": [
+        0.30691,
+        0.4278
+      ],
+      "method_b": "EPSS_frozen",
+      "pr_auc_b": 0.27105,
+      "ci_b": [
+        0.22025,
+        0.32394
+      ],
+      "abs_diff": 0.09609,
+      "abs_diff_95ci": [
+        0.05399,
+        0.14188
+      ],
+      "rel_diff": 0.3545,
+      "rel_diff_95ci": [
+        0.1992,
+        0.5234
+      ],
+      "p_two_sided_raw": 0.0029,
+      "p_holm_adjusted": 0.0087,
+      "statistically_distinguishable_alpha0.05": true
+    },
+    {
+      "comparison": "RRF_vs_EPSS_pointintime",
+      "is_primary": true,
+      "method_a": "RRF_pit",
+      "pr_auc_a": 0.26785,
+      "ci_a": [
+        0.21348,
+        0.32636
+      ],
+      "method_b": "EPSS_pit",
+      "pr_auc_b": 0.2581,
+      "ci_b": [
+        0.2041,
+        0.31578
+      ],
+      "abs_diff": 0.00975,
+      "abs_diff_95ci": [
+        -0.03108,
+        0.05169
+      ],
+      "rel_diff": 0.0378,
+      "rel_diff_95ci": [
+        -0.1204,
+        0.2003
+      ],
+      "p_two_sided_raw": 0.75042,
+      "p_holm_adjusted": 1.0,
+      "statistically_distinguishable_alpha0.05": false
+    },
+    {
+      "comparison": "RRF_vs_CombSUM",
+      "is_primary": false,
+      "method_a": "RRF_frozen",
+      "pr_auc_a": 0.36714,
+      "ci_a": [
+        0.30691,
+        0.4278
+      ],
+      "method_b": "CombSUM_frozen",
+      "pr_auc_b": 0.35361,
+      "ci_b": [
+        0.29485,
+        0.41495
+      ],
+      "abs_diff": 0.01353,
+      "abs_diff_95ci": [
+        -0.00118,
+        0.02865
+      ],
+      "rel_diff": 0.0383,
+      "rel_diff_95ci": [
+        -0.0033,
+        0.081
+      ],
+      "p_two_sided_raw": 0.73473,
+      "p_holm_adjusted": 1.0,
+      "statistically_distinguishable_alpha0.05": false
+    },
+    {
+      "comparison": "tabular_with_vs_without_EPSS",
+      "is_primary": false,
+      "method_a": "tab_with_epss",
+      "pr_auc_a": 0.26788,
+      "ci_a": [
+        0.21367,
+        0.32632
+      ],
+      "method_b": "tab_without_epss",
+      "pr_auc_b": 0.03442,
+      "ci_b": [
+        0.02224,
+        0.05707
+      ],
+      "abs_diff": 0.23346,
+      "abs_diff_95ci": [
+        0.18067,
+        0.2848
+      ],
+      "rel_diff": 6.782,
+      "rel_diff_95ci": [
+        5.2486,
+        8.2735
+      ],
+      "p_two_sided_raw": 0.0001,
+      "p_holm_adjusted": 0.0004,
+      "statistically_distinguishable_alpha0.05": true
+    }
+  ],
+  "elapsed_seconds": 944.3
+}

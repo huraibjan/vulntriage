@@ -101,6 +101,7 @@ class EvidenceInput(BaseModel):
     # Layer A: Affectedness
     affectedness: Affectedness = Affectedness.UNKNOWN
     vex_status: Optional[str] = None  # "not_affected", "affected", "fixed"
+    affectedness_detail: Optional[str] = None  # human-readable evidence (VEX or SBOM match)
 
     # Layer B: Reachability
     reachability: Reachability = Reachability.UNKNOWN
@@ -173,7 +174,10 @@ def decide(evidence: EvidenceInput) -> DecisionOutput:
 
     # ── Gate 0: VEX Not-Affected ─────────────────────────────────────
     if evidence.affectedness == Affectedness.NOT_AFFECTED:
-        rationale.append("VEX status: not_affected — vendor confirms no impact")
+        rationale.append(
+            evidence.affectedness_detail
+            or "VEX status: not_affected — vendor confirms no impact"
+        )
         return DecisionOutput(
             action=Action.ACCEPT,
             confidence=0.95,
@@ -189,6 +193,8 @@ def decide(evidence: EvidenceInput) -> DecisionOutput:
     )
     if not affectedness_known:
         rationale.append("Affectedness unknown — assuming potentially affected")
+    elif evidence.affectedness_detail:
+        rationale.append(evidence.affectedness_detail)
 
     # ── Gate 2: Active exploitation (KEV / confirmed in-the-wild) ────
     if evidence.exploitation == Exploitation.ACTIVE:
@@ -366,6 +372,7 @@ def _build_summary(evidence: EvidenceInput) -> Dict[str, Any]:
         "affectedness": {
             "status": evidence.affectedness,
             "vex": evidence.vex_status,
+            "detail": evidence.affectedness_detail,
         },
         "reachability": {
             "status": evidence.reachability,

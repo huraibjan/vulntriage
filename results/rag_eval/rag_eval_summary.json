@@ -1,0 +1,27 @@
+{
+  "experiment": "rag_eval_expansion",
+  "reviewer_item": "R2-#2 (+minor #4)",
+  "n_briefs": 150,
+  "n_kev_positive": 84,
+  "generator_model": "gpt-4o-mini",
+  "judge_model": "gpt-4o",
+  "automatic_checks": {
+    "briefs_with_valid_technique": 148,
+    "briefs_with_fabricated_technique_id": 0,
+    "fabricated_id_rate": 0.0,
+    "briefs_with_advisory_citation": 149,
+    "advisory_citation_rate": 0.9933,
+    "stix_verified_rate": 0.9933,
+    "hallucination_filter": {
+      "total_llm_proposed_techniques": 271,
+      "total_filtered_by_grounding": 2,
+      "briefs_with_filtered_techniques": 2,
+      "total_fabricated_proposed": 0
+    }
+  },
+  "llm_judge_rates": {
+    "technique_relevant": 0.86,
+    "advisory_cited": 0.9,
+    "fabrication_present": 0.2733
+  }
+}

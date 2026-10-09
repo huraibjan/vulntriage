@@ -1,0 +1,196 @@
+{
+  "experiment": "lev_baseline",
+  "source": "NIST CSWP 41 (Mell & Spring, May 2025), Sec. 4.1 LEV equation; derivation equation (10) in Sec. 5.3",
+  "equation": "LEV(v,d0,dn) >= 1 - prod_{d_i in dates(d0,dn,30)} (1 - epss(v,d_i) * weight(d_i,dn,30)); weight = min(datediff_inclusive(d_i,dn), 30) / 30",
+  "cutoff_date": "2024-06-01",
+  "label_policy": "kev_strict",
+  "n_test": 70831,
+  "n_positives_test": 277,
+  "paper_anchor_check": {
+    "xgb_tabular": 0.25069,
+    "xgb_tabemb": 0.30864,
+    "epss": 0.27105,
+    "rrf": 0.36714
+  },
+  "anchors_verified": true,
+  "lev_asof_dn": "2026-03-03",
+  "epss_snapshots": [
+    "2024-06-01",
+    "2024-07-01",
+    "2024-08-01",
+    "2024-09-01",
+    "2024-10-01",
+    "2024-11-01",
+    "2024-12-02",
+    "2025-01-01",
+    "2025-02-01",
+    "2025-03-01",
+    "2025-04-01",
+    "2025-05-01",
+    "2025-06-01",
+    "2025-07-01",
+    "2025-08-01",
+    "2025-09-01",
+    "2025-10-01",
+    "2025-11-01",
+    "2025-12-01",
+    "2026-01-01",
+    "2026-02-01",
+    "2026-03-01"
+  ],
+  "epss_model_versions": [
+    "model_version:v2023.03.01",
+    "model_version:v2025.03.14"
+  ],
+  "snapshot_weights_unit": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.1
+  ],
+  "snapshot_weights_interval": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.93333,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.93333,
+    0.1
+  ],
+  "caveats": [
+    "Monthly sampling approximates the 30-day windowing of NIST CSWP 41: windows start on monthly snapshot dates (28-33 days apart), and d0 is the first monthly snapshot that scores the CVE, not its first EPSS date.",
+    "LEV here is retrospective: it uses EPSS scores observed after each CVE was published, up to 2026-03-03. It is comparable to the paper's frozen-snapshot setting, not to its historical (point-in-time) EPSS setting.",
+    "LEV is a lower bound by construction (the equation is an inequality).",
+    "The archive spans two EPSS model versions; scores are multiplied across that boundary.",
+    "The frozen EPSS source is the 2026-03-03 feature snapshot; the last LEV window starts at the 2026-03-01 archive file with weight 3/30."
+  ],
+  "coverage": {
+    "n_test": 70831,
+    "n_with_at_least_one_historical_epss_score": 70831,
+    "fraction_with_history": 1.0,
+    "n_without_history": 0,
+    "n_without_history_published_after_last_snapshot": 0,
+    "n_without_history_missing_cve_id": 0,
+    "positives_with_history": 277,
+    "positives_without_history": 0,
+    "windows_per_covered_cve": {
+      "min": 3,
+      "median": 11.0,
+      "max": 22
+    },
+    "days_from_publication_to_first_snapshot_score": {
+      "median": 16.0,
+      "p95": 29.0,
+      "n_scored_in_a_snapshot_dated_before_publication": 0
+    },
+    "n_covered_cves_absent_from_a_later_snapshot": 1,
+    "missing_history_handling": "A snapshot in which a CVE has no EPSS score contributes a factor of 1 to the product (no evidence). A CVE with no score in any snapshot therefore receives LEV = 0 and is ranked at the bottom; ties are broken by row order, exactly as the paper's RRF treats EPSS ties."
+  },
+  "results": {
+    "LEV (monthly windows, unit weights)": {
+      "pr_auc": 0.25192,
+      "roc_auc": 0.96448,
+      "precision@100": 0.46
+    },
+    "EPSS frozen (2026-03-03)": {
+      "pr_auc": 0.27105,
+      "roc_auc": 0.96281,
+      "precision@100": 0.44
+    },
+    "RRF (paper: tabular, tab+emb, EPSS)": {
+      "pr_auc": 0.36714,
+      "roc_auc": 0.97489,
+      "precision@100": 0.71
+    },
+    "RRF + LEV as fourth rank source": {
+      "pr_auc": 0.36837,
+      "roc_auc": 0.98099,
+      "precision@100": 0.67
+    }
+  },
+  "sensitivity": {
+    "LEV (monthly windows, interval weights)": {
+      "pr_auc": 0.25098,
+      "roc_auc": 0.96439,
+      "precision@100": 0.46
+    },
+    "RRF + LEV (interval weights) as fourth rank source": {
+      "pr_auc": 0.36789,
+      "roc_auc": 0.981,
+      "precision@100": 0.67
+    },
+    "RRF with LEV replacing EPSS (three sources)": {
+      "pr_auc": 0.36991,
+      "roc_auc": 0.97836,
+      "precision@100": 0.68
+    },
+    "spearman_lev_unit_vs_interval": 0.99999,
+    "spearman_lev_vs_frozen_epss": 0.82232
+  },
+  "paired_bootstrap": {
+    "n_resamples": 2000,
+    "seed": 42,
+    "metric": "PR-AUC (average precision) difference, percentile 95% CI",
+    "lev_minus_epss": {
+      "pr_auc_diff": -0.01913,
+      "ci95": [
+        -0.04123,
+        0.0051
+      ],
+      "ci_excludes_zero": false,
+      "fraction_resamples_positive": 0.065
+    },
+    "rrf_minus_lev": {
+      "pr_auc_diff": 0.11522,
+      "ci95": [
+        0.06275,
+        0.16425
+      ],
+      "ci_excludes_zero": true,
+      "fraction_resamples_positive": 1.0
+    },
+    "rrf_plus_lev_minus_rrf": {
+      "pr_auc_diff": 0.00123,
+      "ci95": [
+        -0.01413,
+        0.01539
+      ],
+      "ci_excludes_zero": false,
+      "fraction_resamples_positive": 0.5795
+    }
+  },
+  "elapsed_seconds": 84.0
+}

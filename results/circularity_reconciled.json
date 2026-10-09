@@ -1,0 +1,17 @@
+{
+  "experiment": "reconcile_circularity",
+  "n_test": 70831,
+  "n_positives_test": 277,
+  "saved_tabular_anchor": 0.25069,
+  "configs_tuned_retrain": {
+    "circular_full": 1.0,
+    "clean_tabular": 0.26788,
+    "cvss_epss_only": 0.22696,
+    "epss_only": 0.27105,
+    "cvss_only": 0.01104,
+    "clean_plus_text": 0.29316
+  },
+  "inflation_factor": 3.733,
+  "note": "All circularity configs use the tuned v2 params on the v2 split (fresh retrain). clean_tabular is the single ablation baseline shared with the feature-group ablation; the saved model in Table II (0.25069) differs marginally due to retraining.",
+  "elapsed_seconds": 21.6
+}

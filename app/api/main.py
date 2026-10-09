@@ -8,14 +8,15 @@ from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.api.security import llm_rate_limit, require_api_key
 from app.core.logging import get_logger, setup_logging
 from app.core.settings import get_settings
-from app.db.models import Vulnerability, SignalObservation
+from app.db.models import BriefCache, SignalObservation, Vulnerability
 from app.db.session import get_db
 from app.schemas.models import (
     HealthResponse,
@@ -51,6 +52,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def _warm_models() -> None:
+    """Load the rank models and sentence encoder off the request path.
+
+    The first scoring request otherwise pays the full model-load cost. Failure
+    here is logged and left to surface on the request that needs the models.
+    """
+    import threading
+
+    def _load() -> None:
+        try:
+            from app.ml.fusion import get_scorer
+            get_scorer().source_scores({}, "warm-up")
+            log.info("rank_models_warmed")
+        except Exception as e:  # noqa: BLE001
+            log.warning("rank_model_warmup_failed", error=str(e))
+
+    threading.Thread(target=_load, name="model-warmup", daemon=True).start()
+
 
 # ── API Router ────────────────────────────────────────────────────────────
 # All endpoints are defined on this router, then mounted at both / and /api.
@@ -183,19 +204,82 @@ def predict_vulnerability(
     asof_date = date.fromisoformat(asof) if asof else date.today()
 
     try:
+        import pandas as pd
         from app.features.builder import build_features_for_vuln
-        from app.ml.tabular.train import load_model, predict
+        from app.ml.tabular.train import load_model, model_metadata
+        from app.schemas.decision import (
+            Affectedness, ControlStatus, Criticality, EvidenceInput,
+            Exploitation, Reachability, decide,
+        )
 
         features = build_features_for_vuln(vuln, db, asof_date)
+
+        # Leakage-safe model by default (excludes exploit-signal features). The
+        # retrospective leaky model would read the KEV label off its own input.
+        model_path = get_settings().models_dir  # load_model() picks leakage_safe
         model = load_model()
-        p_stage1 = predict(model, features)
+        feat_cols = list(model.get_booster().feature_names)
+        X = pd.DataFrame([{c: features.get(c, 0.0) for c in feat_cols}])[
+            feat_cols
+        ].fillna(0).astype(float)
+        p_stage1 = float(model.predict_proba(X)[:, 1][0])
+        meta = model_metadata(get_settings().models_dir / "xgb_tuned_tabular_v2.joblib")
+
+        # Reciprocal Rank Fusion over {tabular, tabular+embedding, EPSS}, ranked
+        # against the held-out reference population. A rank, not a probability.
+        from app.ml.fusion import get_scorer
+        rrf = get_scorer().score(features, vuln.description)
+
+        # ── SSVC decision (assetless / global evidence) — computed backend-side
+        # so the UI never re-derives thresholds. KEV / PoC are legitimate SSVC
+        # weaponization evidence for the *decision*, not prediction features.
+        kev = bool(features.get("kev_flag"))
+        poc = bool(features.get("poc_exploitdb_flag")) or bool(features.get("metasploit_flag"))
+        exploitation = (Exploitation.ACTIVE if kev else
+                        Exploitation.POC_PUBLIC if poc else Exploitation.THEORETICAL)
+        evidence = EvidenceInput(
+            affectedness=Affectedness.UNKNOWN,
+            reachability=Reachability.UNKNOWN,
+            is_internet_facing=False,
+            exploitation=exploitation,
+            epss_score=float(features.get("epss_score", 0.0)),
+            ml_exploit_prob=p_stage1,
+            days_since_published=int(features.get("days_since_published", 0) or 0),
+            control_status=ControlStatus.UNKNOWN,
+            asset_criticality=Criticality.MEDIUM,
+            cvss_base_score=float(vuln.cvss_base_score or 0.0),
+        )
+        decision = decide(evidence)
+        from app.schemas.ssvc_cisa import derive_decision_points
+        ssvc_cisa = derive_decision_points(
+            in_kev=kev, has_public_poc=poc, cvss_vector=vuln.cvss_vector,
+        ).to_dict()
+        action = getattr(decision.action, "value", decision.action)
+        expl = getattr(exploitation, "value", exploitation)
 
         return {
             "vuln_id": str(vuln.id),
             "cve_id": vuln.cve_id,
             "asof": str(asof_date),
+            "model": meta,                      # structured leakage-safe badge
+            "rrf": rrf,
+            # CISA SSVC table applied to decision points derived from the data
+            # held here; each point states whether it is observed or inferred.
+            "ssvc_cisa": ssvc_cisa,
+            # Raw output of the leakage-safe tabular model (one RRF source and the
+            # ML input to the decision engine). Uncalibrated; kept for clients
+            # that read the earlier field names.
+            "tabular_model_output": round(p_stage1, 4),
             "p_stage1": round(p_stage1, 4),
             "p_final": round(p_stage1, 4),
+            "decision": {
+                "action": action,
+                "sla_hours": decision.sla_hours,
+                "confidence": decision.confidence,
+                "rationale": decision.rationale,
+                "exploitation": expl,
+                "scope": "global (no asset context)",
+            },
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
@@ -256,33 +340,57 @@ def generate_brief(
 
 # ── LLM-Powered Brief ───────────────────────────────────────────────────
 
-@router.post("/v1/brief-llm/{vuln_id}")
+@router.post("/v1/brief-llm/{vuln_id}", dependencies=[Depends(require_api_key)])
 def generate_llm_brief_endpoint(
     vuln_id: str,
+    request: Request,
     asof: Optional[str] = Query(None, description="As-of date YYYY-MM-DD"),
+    verify: bool = Query(
+        False,
+        description="High-precision mode: a Chain-of-Verification pass drops retrieved "
+        "ATT&CK techniques the model cannot confirm, and abstains when none remain.",
+    ),
+    refresh: bool = Query(False, description="Regenerate even if a cached brief exists"),
     db: Session = Depends(get_db),
 ):
-    """Generate an AI-powered vulnerability brief using GPT-4o-mini + RAG."""
-    from datetime import date
+    """Generate an ATT&CK-grounded brief with GPT-4o-mini over retrieved evidence."""
+    from datetime import date, datetime, timedelta
 
     vuln = _resolve_vuln(vuln_id, db)
     asof_date = date.fromisoformat(asof) if asof else date.today()
 
     settings = get_settings()
+    mode = "verified" if verify else "baseline"
+
+    cached = (
+        db.query(BriefCache)
+        .filter_by(vulnerability_id=vuln.id, mode=mode, llm_model=settings.openai_model)
+        .first()
+    )
+    ttl = timedelta(hours=settings.brief_cache_ttl_hours)
+    if cached and not refresh and datetime.utcnow() - cached.created_at < ttl:
+        payload = dict(cached.payload_json)
+        payload["cached"] = True
+        payload["generated_at"] = cached.created_at.isoformat()
+        return payload
+
     if not settings.openai_api_key:
         raise HTTPException(
             status_code=503,
             detail="OpenAI API key not configured. Set OPENAI_API_KEY in .env.",
         )
+    llm_rate_limit(request)
 
     try:
         from app.features.builder import build_features_for_vuln
+        from app.ml.fusion import get_scorer
         from app.ml.tabular.train import load_model, predict
         from app.rag.llm_generator import generate_llm_brief
 
         features = build_features_for_vuln(vuln, db, asof_date)
         model = load_model()
         p_stage1 = predict(model, features)
+        rrf = get_scorer().score(features, vuln.description)
 
         epss_signal = (
             db.query(SignalObservation)
@@ -312,19 +420,39 @@ def generate_llm_brief_endpoint(
             "p_stage1": p_stage1,
             "p_final": p_stage1,
             "epss_score": epss_score,
+            "rrf": rrf,
         }
 
-        result = generate_llm_brief(vuln_dict, scores, asof_date=str(asof_date))
+        result = generate_llm_brief(
+            vuln_dict, scores, asof_date=str(asof_date), verify_relevance=verify
+        )
 
-        return {
+        payload = {
             "cve_id": vuln.cve_id,
             "model": result["usage"]["model"],
             "tokens_used": result["usage"]["total_tokens"],
             "verified": result["verification"]["valid"],
+            "mode": mode,
+            "pipeline": result["pipeline"],
+            "rrf": rrf,
             "brief": result["brief"],
             "llm_analysis": result["llm_analysis"],
             "verification": result["verification"],
         }
+
+        if cached:
+            cached.payload_json = payload
+            cached.created_at = datetime.utcnow()
+        else:
+            db.add(BriefCache(
+                vulnerability_id=vuln.id, mode=mode,
+                llm_model=settings.openai_model, payload_json=payload,
+            ))
+        db.commit()
+
+        payload = dict(payload)
+        payload["cached"] = False
+        return payload
 
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -406,6 +534,7 @@ def dashboard_stats(db: Session = Depends(get_db)):
             {"year": int(y), "count": c} for y, c in yearly
         ],
         "openai_enabled": bool(get_settings().openai_api_key),
+        "api_key_required": bool(get_settings().vulntriage_api_key),
     }
 
 
@@ -498,7 +627,7 @@ def get_asset_decision(
         raise HTTPException(status_code=500, detail=f"Decision engine error: {e}")
 
 
-@router.post("/v1/assets/batch-score")
+@router.post("/v1/assets/batch-score", dependencies=[Depends(require_api_key)])
 def batch_score_assets(
     payload: dict,
     asof: Optional[str] = Query(None, description="As-of date YYYY-MM-DD"),
@@ -552,6 +681,10 @@ def _resolve_vuln(vuln_id: str, db: Session) -> Vulnerability:
 # ── Mount routes & static files ───────────────────────────────────────────
 # Routes registered at root (/) and /api prefix so the frontend's /api/* calls
 # reach the same handlers whether proxied by nginx or served directly.
+from app.api.assets import router as assets_router  # noqa: E402
+
+router.include_router(assets_router)
+
 app.include_router(router)
 app.include_router(router, prefix="/api")
 

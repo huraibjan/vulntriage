@@ -1,0 +1,158 @@
+{
+  "experiment": "feature_group_ablation",
+  "reviewer_item": "R2-#6",
+  "cutoff_date": "2024-06-01",
+  "policy": "kev_strict",
+  "ablation": "no_circular",
+  "n_test": 70831,
+  "n_positives_test": 277,
+  "paper_anchor_pr_auc": 0.25069,
+  "retrain_baseline_pr_auc": 0.26788,
+  "groups": {
+    "cvss_core": [
+      "cvss_base_score",
+      "cvss_version_31"
+    ],
+    "cvss_vector": [
+      "cvss_attack_complexity",
+      "cvss_attack_vector",
+      "cvss_availability_impact",
+      "cvss_cia_total",
+      "cvss_confidentiality_impact",
+      "cvss_integrity_impact",
+      "cvss_is_network",
+      "cvss_no_interaction",
+      "cvss_no_privs",
+      "cvss_privileges_required",
+      "cvss_scope",
+      "cvss_scope_changed",
+      "cvss_user_interaction"
+    ],
+    "cwe": [
+      "cwe_auth_bypass",
+      "cwe_count",
+      "cwe_deserialization",
+      "cwe_file_upload",
+      "cwe_information_disclosure",
+      "cwe_injection",
+      "cwe_input_validation",
+      "cwe_memory_safety",
+      "cwe_other",
+      "cwe_path_traversal",
+      "cwe_race_condition",
+      "cwe_ssrf"
+    ],
+    "enrichment_epss": [
+      "epss_score"
+    ],
+    "reference_network": [
+      "product_count",
+      "reference_count"
+    ],
+    "temporal": [
+      "days_since_published"
+    ],
+    "text": [
+      "description_length",
+      "description_word_count"
+    ]
+  },
+  "method_a_logo_retrain": [
+    {
+      "group": "enrichment_epss",
+      "n_features": 1,
+      "pr_auc_without_group": 0.03442,
+      "delta_pr_auc": -0.23346,
+      "relative_drop": -0.8715
+    },
+    {
+      "group": "reference_network",
+      "n_features": 2,
+      "pr_auc_without_group": 0.19136,
+      "delta_pr_auc": -0.07652,
+      "relative_drop": -0.2857
+    },
+    {
+      "group": "temporal",
+      "n_features": 1,
+      "pr_auc_without_group": 0.22149,
+      "delta_pr_auc": -0.04639,
+      "relative_drop": -0.1732
+    },
+    {
+      "group": "cvss_vector",
+      "n_features": 13,
+      "pr_auc_without_group": 0.23169,
+      "delta_pr_auc": -0.03619,
+      "relative_drop": -0.1351
+    },
+    {
+      "group": "text",
+      "n_features": 2,
+      "pr_auc_without_group": 0.25218,
+      "delta_pr_auc": -0.0157,
+      "relative_drop": -0.0586
+    },
+    {
+      "group": "cwe",
+      "n_features": 12,
+      "pr_auc_without_group": 0.25777,
+      "delta_pr_auc": -0.01011,
+      "relative_drop": -0.0377
+    },
+    {
+      "group": "cvss_core",
+      "n_features": 2,
+      "pr_auc_without_group": 0.26609,
+      "delta_pr_auc": -0.00179,
+      "relative_drop": -0.0067
+    }
+  ],
+  "method_b_inference_zeroing": [
+    {
+      "group": "enrichment_epss",
+      "pr_auc_zeroed": 0.01615,
+      "delta_pr_auc": -0.23454
+    },
+    {
+      "group": "reference_network",
+      "pr_auc_zeroed": 0.16681,
+      "delta_pr_auc": -0.08388
+    },
+    {
+      "group": "cvss_vector",
+      "pr_auc_zeroed": 0.20241,
+      "delta_pr_auc": -0.04827
+    },
+    {
+      "group": "cwe",
+      "pr_auc_zeroed": 0.23627,
+      "delta_pr_auc": -0.01442
+    },
+    {
+      "group": "cvss_core",
+      "pr_auc_zeroed": 0.24323,
+      "delta_pr_auc": -0.00745
+    },
+    {
+      "group": "temporal",
+      "pr_auc_zeroed": 0.25069,
+      "delta_pr_auc": 0.0
+    },
+    {
+      "group": "text",
+      "pr_auc_zeroed": 0.28267,
+      "delta_pr_auc": 0.03199
+    }
+  ],
+  "method_c_gain_importance_share": {
+    "cvss_vector": 0.4457,
+    "cwe": 0.1815,
+    "enrichment_epss": 0.1522,
+    "reference_network": 0.1516,
+    "cvss_core": 0.0382,
+    "text": 0.0195,
+    "temporal": 0.0114
+  },
+  "elapsed_seconds": 15.4
+}

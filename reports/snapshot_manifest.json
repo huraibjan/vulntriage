@@ -1,0 +1,190 @@
+{
+  "generated_at": "2026-10-09T02:02:02+00:00",
+  "evaluated_configuration": {
+    "feature_snapshot_asof": "2026-03-03",
+    "train_test_cutoff": "2024-06-01",
+    "label_policy": "kev_strict",
+    "feature_policy": "no_circular",
+    "rrf_k": 60,
+    "rank_sources": [
+      "xgb_tabular",
+      "xgb_tabemb",
+      "epss"
+    ],
+    "seed": 42,
+    "validation_fraction": 0.15
+  },
+  "database": {
+    "vulnerabilities": 180497,
+    "published_range": [
+      "2020-01-02",
+      "2025-12-31"
+    ],
+    "feature_snapshot_rows": 180497,
+    "kev_listed_cves": 975,
+    "cves_with_nvd_configurations": 154650,
+    "signals": {
+      "epss": {
+        "rows": 180407,
+        "first_observed": "2026-03-02",
+        "last_observed": "2026-03-02"
+      },
+      "kev": {
+        "rows": 2925,
+        "first_observed": "2021-11-03",
+        "last_observed": "2026-03-02"
+      },
+      "metasploit": {
+        "rows": 48,
+        "first_observed": "2012-04-29",
+        "last_observed": "2020-05-25"
+      },
+      "poc_exploitdb": {
+        "rows": 1565,
+        "first_observed": "2005-06-21",
+        "last_observed": "2026-03-03"
+      }
+    }
+  },
+  "reference_population": {
+    "population": "held-out test partition (published on or after cutoff)",
+    "n_reference": 70831,
+    "n_positives": 277,
+    "cutoff": "2024-06-01",
+    "feature_snapshot_asof": "2026-03-03",
+    "label_policy": "kev_strict",
+    "feature_policy": "no_circular",
+    "rrf_k": 60,
+    "sources": [
+      "xgb_tabular",
+      "xgb_tabemb",
+      "epss"
+    ],
+    "pr_auc": {
+      "xgb_tabular": 0.25069,
+      "xgb_tabemb": 0.30864,
+      "epss": 0.27105,
+      "rrf": 0.36714
+    },
+    "anchors_verified": true
+  },
+  "attck_corpus": {
+    "version": "v18.1",
+    "file": "data/attck/enterprise-attack-full.json",
+    "sha256": "f857d8f78f2f0c0b7db321a711a39fba98546c1e3076a657684850c83d0962fb"
+  },
+  "models": [
+    {
+      "path": "models/xgb_tuned_tabular_v2.joblib",
+      "bytes": 1131509,
+      "sha256": "556d513479d3db51d94819d158616f3047af5eaf89c4f4cac3042df6dcec9a74"
+    },
+    {
+      "path": "models/xgb_tuned_tabemb_v2.joblib",
+      "bytes": 1060383,
+      "sha256": "0307a0e4acf70e2763c2826649f8429d95d372d079c792217b21b4303d2ce79d"
+    },
+    {
+      "path": "models/text_embedding_pipeline_v2.joblib",
+      "bytes": 111429,
+      "sha256": "a6075622ec08bdf2d4c8f5996bdbbcf70dec07cc7ec65fab404aecc96a35794e"
+    },
+    {
+      "path": "models/rrf_reference_v2.npz",
+      "bytes": 873330,
+      "sha256": "c549412eb9189cebabc781ac479d5b9d82689e6f6cdb733d04b369eb449784a2"
+    },
+    {
+      "path": "models/rrf_reference_v2.json",
+      "bytes": 481,
+      "sha256": "4fa255d0c388a08f4ccafa33c61552b0a284b1229392dbc72dd10177b7ac4e3d"
+    }
+  ],
+  "results": [
+    {
+      "path": "results/ensemble_v2_comparison.csv",
+      "bytes": 648,
+      "sha256": "142a7343cba183bdb6ea218c0c3bde2a4e3ab21dd1d1b9e0bbccb5c29ee927b4"
+    },
+    {
+      "path": "results/ensemble_fusion_baselines.json",
+      "bytes": 2021,
+      "sha256": "fcd3088da66b4a2fbc0c2fe7a4baa3523df417557b08dddd796983916ffae00e"
+    },
+    {
+      "path": "results/rrf_k_ablation.json",
+      "bytes": 1258,
+      "sha256": "217bd0bd651e90149ab7d6107888e0384e78684ba4214ea0eed01030c357b91c"
+    },
+    {
+      "path": "results/rolling_window_cv.json",
+      "bytes": 6311,
+      "sha256": "e0fc6cf4d2317489e8f4ac5d916c45880afe8671bd6f3b6a4a1824f15edb3dd3"
+    },
+    {
+      "path": "results/point_in_time_epss.json",
+      "bytes": 1727,
+      "sha256": "c2e08b964a9974b69bda990716ca2d5bb0ac640620ba9250aa88bffc9c9f81ac"
+    },
+    {
+      "path": "results/strict_pit_bound.json",
+      "bytes": 698,
+      "sha256": "6bc6f8ddfba59427682d4a04cd8c9bf33643d52987cb2075d87b6180ed5e05d6"
+    },
+    {
+      "path": "results/circularity_reconciled.json",
+      "bytes": 640,
+      "sha256": "49e885dbb4c149c1a64ff845642542fb574e1d9917c745cd8d0876126191c822"
+    },
+    {
+      "path": "results/feature_group_ablation.json",
+      "bytes": 3576,
+      "sha256": "9bc6736ac7da374623004d5baa65c796e63bd0f0521d29c55e0718cb5b599571"
+    },
+    {
+      "path": "results/shap_v2.json",
+      "bytes": 948,
+      "sha256": "f701b5fa9e05f3e93bdb13f76358c0a91a972fba905809245e985f1c65c25b0a"
+    },
+    {
+      "path": "results/statistical_significance.json",
+      "bytes": 4166,
+      "sha256": "4e6b408de890a1ae2349c27318ffa49ded54365a4a74429b4ded867fd3c5f283"
+    },
+    {
+      "path": "results/asset_aware_triage.json",
+      "bytes": 1381,
+      "sha256": "70265fad8213945afd77af866bbd1f60a5ede86e26af5a9ff4a38a12e6d072cc"
+    },
+    {
+      "path": "results/asset_aware_triage_corrected_vex_scope.json",
+      "bytes": 1383,
+      "sha256": "7ee12d3f75573d71c926cc5b9b8bd485506d7fcb819149bdff993d82e5320700"
+    },
+    {
+      "path": "results/rq4_global_triage.json",
+      "bytes": 422,
+      "sha256": "6409589b05755e46e190a53c0e388755586294723ca069c0bb5883c7c5d4e4e9"
+    },
+    {
+      "path": "results/rag_eval/rag_eval_summary.json",
+      "bytes": 768,
+      "sha256": "b55e513e76087326df6a2f2ed878d3a1e49e2539be684e49b8e8b9cd226701c2"
+    },
+    {
+      "path": "results/rag_eval/rerank_ab_summary.json",
+      "bytes": 1192,
+      "sha256": "0c9e58c1f1fcce0b06c46c2ba69e18f1f84caac821b2266341fda804e76882c6"
+    },
+    {
+      "path": "results/rag_eval/kappa.json",
+      "bytes": 577,
+      "sha256": "5b6da3f4cc7896deadcbfa3ee7fe9bba5c51e4fcf2ce9130490347d7cdda298d"
+    }
+  ],
+  "known_evaluation_limits": [
+    "Features and KEV labels are a single 2026-03 snapshot; only EPSS is replaced historically in the sensitivity analysis.",
+    "EPSS is stored for one observation date in the database.",
+    "The asset experiment uses a synthetic fleet; asset_aware_triage.json predates the VEX-scope correction and is kept as the published artifact."
+  ]
+}

@@ -32,11 +32,10 @@ class TestTimeAwareSplit:
         assert len(test) == 2
 
     def test_cutoff_inclusive(self):
-        """Records ON the cutoff date go to train."""
+        """Records ON the cutoff date go to train; an empty test split raises."""
         df = self._make_df(["2024-01-01", "2024-06-01"])
-        train, test = time_aware_split(df, "2024-06-01")
-        assert len(train) == 2  # Both at or before cutoff
-        assert len(test) == 0 or pytest.raises(ValueError)
+        with pytest.raises(ValueError, match="Test split is empty"):
+            time_aware_split(df, "2024-06-01")
 
     def test_cutoff_exact_boundary(self):
         """Only one record after cutoff."""

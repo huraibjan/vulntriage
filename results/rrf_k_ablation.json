@@ -1,0 +1,85 @@
+{
+  "experiment": "rrf_k_ablation",
+  "reviewer_item": "R2-#3",
+  "cutoff_date": "2024-06-01",
+  "policy": "kev_strict",
+  "ablation": "no_circular",
+  "sources": [
+    "xgb_tabular",
+    "xgb_tabemb",
+    "epss"
+  ],
+  "n_test": 70831,
+  "n_positives_test": 277,
+  "paper_anchor_check": {
+    "tabular": 0.25069,
+    "tabemb": 0.30864,
+    "epss": 0.27105,
+    "rrf_k60": 0.36714
+  },
+  "k_values_tested": [
+    5,
+    10,
+    20,
+    30,
+    40,
+    60,
+    80,
+    100,
+    150,
+    200,
+    300
+  ],
+  "rrf_results": [
+    {
+      "k": 5,
+      "pr_auc": 0.37874
+    },
+    {
+      "k": 10,
+      "pr_auc": 0.37679
+    },
+    {
+      "k": 20,
+      "pr_auc": 0.37413
+    },
+    {
+      "k": 30,
+      "pr_auc": 0.3715
+    },
+    {
+      "k": 40,
+      "pr_auc": 0.37045
+    },
+    {
+      "k": 60,
+      "pr_auc": 0.36714
+    },
+    {
+      "k": 80,
+      "pr_auc": 0.36341
+    },
+    {
+      "k": 100,
+      "pr_auc": 0.36128
+    },
+    {
+      "k": 150,
+      "pr_auc": 0.35486
+    },
+    {
+      "k": 200,
+      "pr_auc": 0.35124
+    },
+    {
+      "k": 300,
+      "pr_auc": 0.34507
+    }
+  ],
+  "default_k": 60,
+  "default_k_pr_auc": 0.36714,
+  "best_k": 5,
+  "best_k_pr_auc": 0.37874,
+  "pr_auc_spread_across_k": 0.03367,
+  "elapsed_seconds": 12.0
+}

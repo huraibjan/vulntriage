@@ -1,0 +1,74 @@
+{
+  "experiment": "point_in_time_epss",
+  "purpose": "Remove retroactive-enrichment channel from the headline evaluation using FIRST historical EPSS archive.",
+  "epss_snapshots": [
+    "2024-06-01",
+    "2024-07-01",
+    "2024-08-01",
+    "2024-09-01",
+    "2024-10-01",
+    "2024-11-01",
+    "2024-12-02",
+    "2025-01-01",
+    "2025-02-01",
+    "2025-03-01",
+    "2025-04-01",
+    "2025-05-01",
+    "2025-06-01",
+    "2025-07-01",
+    "2025-08-01",
+    "2025-09-01",
+    "2025-10-01",
+    "2025-11-01",
+    "2025-12-01",
+    "2026-01-01",
+    "2026-02-01",
+    "2026-03-01"
+  ],
+  "train_epss": "as-of cutoff snapshot 2024-06-01",
+  "test_epss": "first monthly snapshot on/after publication (0-31d lag)",
+  "test_pit_coverage_nonzero": 0.9987,
+  "corr_pit_vs_frozen": 0.3624,
+  "n_test": 70831,
+  "n_positives_test": 277,
+  "results": {
+    "EPSS point-in-time (baseline)": {
+      "pr_auc": 0.2581,
+      "roc_auc": 0.85458,
+      "precision@50": 0.62,
+      "precision@100": 0.53
+    },
+    "CVSS": {
+      "pr_auc": 0.01104,
+      "roc_auc": 0.75002,
+      "precision@50": 0.06,
+      "precision@100": 0.06
+    },
+    "XGB tabular (PIT)": {
+      "pr_auc": 0.13937,
+      "roc_auc": 0.87686,
+      "precision@50": 0.44,
+      "precision@100": 0.39
+    },
+    "XGB tab+emb (PIT)": {
+      "pr_auc": 0.20973,
+      "roc_auc": 0.91608,
+      "precision@50": 0.64,
+      "precision@100": 0.48
+    },
+    "RRF ensemble (PIT)": {
+      "pr_auc": 0.26785,
+      "roc_auc": 0.91799,
+      "precision@50": 0.64,
+      "precision@100": 0.56
+    }
+  },
+  "rrf_gain_over_pit_epss": 0.0378,
+  "frozen_reference": {
+    "rrf": 0.36714,
+    "epss": 0.27105,
+    "tabular": 0.25069,
+    "tabemb": 0.30864
+  },
+  "elapsed_seconds": 18.0
+}

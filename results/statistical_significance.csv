@@ -1,0 +1,5 @@
+comparison,is_primary,method_a,pr_auc_a,ci_a,method_b,pr_auc_b,ci_b,abs_diff,abs_diff_95ci,rel_diff,rel_diff_95ci,p_two_sided_raw,p_holm_adjusted,statistically_distinguishable_alpha0.05
+RRF_vs_EPSS_frozen,False,RRF_frozen,0.36714,"[0.30691, 0.4278]",EPSS_frozen,0.27105,"[0.22025, 0.32394]",0.09609,"[0.05399, 0.14188]",0.3545,"[0.1992, 0.5234]",0.0029,0.0087,True
+RRF_vs_EPSS_pointintime,True,RRF_pit,0.26785,"[0.21348, 0.32636]",EPSS_pit,0.2581,"[0.2041, 0.31578]",0.00975,"[-0.03108, 0.05169]",0.0378,"[-0.1204, 0.2003]",0.75042,1.0,False
+RRF_vs_CombSUM,False,RRF_frozen,0.36714,"[0.30691, 0.4278]",CombSUM_frozen,0.35361,"[0.29485, 0.41495]",0.01353,"[-0.00118, 0.02865]",0.0383,"[-0.0033, 0.081]",0.73473,1.0,False
+tabular_with_vs_without_EPSS,False,tab_with_epss,0.26788,"[0.21367, 0.32632]",tab_without_epss,0.03442,"[0.02224, 0.05707]",0.23346,"[0.18067, 0.2848]",6.782,"[5.2486, 8.2735]",0.0001,0.0004,True

@@ -5,6 +5,7 @@ import {
   ShieldAlert,
   Brain,
   ShieldCheck,
+  Server,
 } from 'lucide-react'
 
 const sidebarVariants = {
@@ -23,6 +24,7 @@ const itemVariants = {
 const NAV_LINKS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/vulnerabilities', icon: ShieldAlert, label: 'Vulnerabilities' },
+  { to: '/inventory', icon: Server, label: 'Assets' },
 ]
 
 export default function Sidebar() {

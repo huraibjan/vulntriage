@@ -78,3 +78,43 @@ run_phase2.py
 GA_Progress_Report.md
 package-lock.json
 !frontend/package-lock.json
+
+# ── Reproducibility artifacts (tracked) ────────
+# The evaluated pipeline, its result artifacts and the serving reference are
+# part of the published evidence; the rules above would otherwise hide them.
+!README.md
+!run_ensemble_v2.py
+!results/
+results/*
+!results/*.json
+!results/*.csv
+!results/rag_eval/
+results/rag_eval/*
+!results/rag_eval/*.json
+!results/rag_eval/*.csv
+!reports/
+reports/*
+!reports/snapshot_manifest.json
+!reports/paper_result_manifest.json
+!.claude/skills/**/*.md
+
+# Local agent settings are per-machine
+.claude/settings.local.json
+
+# ── Large public datasets (download instead of committing) ──
+# MITRE ATT&CK v18.1 STIX bundle and FIRST EPSS monthly archives; their
+# checksums are recorded in reports/snapshot_manifest.json.
+data/attck/enterprise-attack-full.json
+data/epss_history/
+
+# ── Conference material: keep generators and prompts, not rendered output ──
+conference_isaia2026/art/generated/*.png
+conference_isaia2026/art/generated/jpg/
+conference_isaia2026/art/generated/jpg_v2/
+conference_isaia2026/art/candidates/
+conference_isaia2026/art/scenes/
+conference_isaia2026/review/
+conference_isaia2026/slides/~$*
+experiments/annotate.html
+experiments/refab.html
+conference_isaia2026/art/generated/log.jsonl

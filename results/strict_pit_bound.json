@@ -1,0 +1,24 @@
+{
+  "experiment": "strict_pit_bound",
+  "purpose": "Lower bound on RRF advantage: point-in-time EPSS AND accumulating counters (reference_count, product_count) removed entirely.",
+  "n_features": 31,
+  "results": {
+    "epss_pit_only": {
+      "pr_auc": 0.2581,
+      "roc_auc": 0.85458,
+      "precision@100": 0.53
+    },
+    "xgb_tabular_strict_pit": {
+      "pr_auc": 0.17873,
+      "roc_auc": 0.88412,
+      "precision@100": 0.41
+    },
+    "rrf_tab_epss_strict_pit": {
+      "pr_auc": 0.26726,
+      "roc_auc": 0.88373,
+      "precision@100": 0.55
+    }
+  },
+  "rrf_gain_over_pit_epss": 0.0355,
+  "note": "RRF >= EPSS on PR-AUC, ROC-AUC, and P@100 even at the strictest point-in-time bound."
+}

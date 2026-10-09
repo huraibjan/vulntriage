@@ -1,0 +1,20 @@
+{
+  "experiment": "rq4_global_triage_refresh",
+  "n_test": 70831,
+  "n_kev": 277,
+  "kev_urgent": 277,
+  "kev_urgent_rate": 1.0,
+  "kev_action_distribution": {
+    "mitigate_now": 277
+  },
+  "n_nonkev": 70554,
+  "nonkev_urgent": 0,
+  "false_escalation_rate": 0.0,
+  "overall_action_distribution": {
+    "accept": 68343,
+    "monitor": 1981,
+    "mitigate_now": 277,
+    "patch_window": 230
+  },
+  "elapsed_seconds": 10.5
+}

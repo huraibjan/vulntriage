@@ -1,0 +1,47 @@
+{
+  "experiment": "rag_rerank_ablation",
+  "n_briefs": 150,
+  "arms": {
+    "baseline": {
+      "rerank": false,
+      "verify_relevance": false
+    },
+    "cove_only": {
+      "rerank": false,
+      "verify_relevance": true
+    }
+  },
+  "per_arm": {
+    "baseline": {
+      "n_briefs": 150,
+      "mean_techniques_per_brief": 2.96,
+      "abstain_rate": 0.0133,
+      "technique_relevant_rate": 0.8784,
+      "over_rationalization_rate": 0.2733,
+      "advisory_citation_rate": 0.9933,
+      "fabricated_id_rate": 0.0,
+      "faithfulness_mean": 0.5844,
+      "n_faithfulness_scored": 150
+    },
+    "cove_only": {
+      "n_briefs": 150,
+      "mean_techniques_per_brief": 0.833,
+      "abstain_rate": 0.3467,
+      "technique_relevant_rate": 0.9592,
+      "over_rationalization_rate": 0.12,
+      "advisory_citation_rate": 0.9867,
+      "fabricated_id_rate": 0.0,
+      "faithfulness_mean": 0.6465,
+      "n_faithfulness_scored": 150
+    }
+  },
+  "improvement_delta": {
+    "cove_only": {
+      "technique_relevant_rate": 0.0808,
+      "over_rationalization_rate": -0.1533,
+      "advisory_citation_rate": -0.0066,
+      "faithfulness_mean": 0.0621,
+      "abstain_rate": 0.3334
+    }
+  }
+}

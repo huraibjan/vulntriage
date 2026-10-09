@@ -1,0 +1,65 @@
+{
+  "paper": {
+    "path": "VulnTriage_IEEE_ISAIA2026_REVISED.docx",
+    "sha256": "43a0fb069fa6fa48cc0e287910816d2a372f99615f202f40da0a21bb80b03758",
+    "rendered_pages": 6,
+    "visual_qa": "passed using Microsoft Word PDF export and 150-dpi page images"
+  },
+  "evidence_artifacts": [
+    {
+      "path": "results/ensemble_fusion_baselines.json",
+      "sha256": "fcd3088da66b4a2fbc0c2fe7a4baa3523df417557b08dddd796983916ffae00e"
+    },
+    {
+      "path": "results/rrf_k_ablation.json",
+      "sha256": "217bd0bd651e90149ab7d6107888e0384e78684ba4214ea0eed01030c357b91c"
+    },
+    {
+      "path": "results/rolling_window_cv.json",
+      "sha256": "e0fc6cf4d2317489e8f4ac5d916c45880afe8671bd6f3b6a4a1824f15edb3dd3"
+    },
+    {
+      "path": "results/point_in_time_epss.json",
+      "sha256": "c2e08b964a9974b69bda990716ca2d5bb0ac640620ba9250aa88bffc9c9f81ac"
+    },
+    {
+      "path": "results/circularity_reconciled.json",
+      "sha256": "49e885dbb4c149c1a64ff845642542fb574e1d9917c745cd8d0876126191c822"
+    },
+    {
+      "path": "results/feature_group_ablation.json",
+      "sha256": "9bc6736ac7da374623004d5baa65c796e63bd0f0521d29c55e0718cb5b599571"
+    },
+    {
+      "path": "results/statistical_significance.json",
+      "sha256": "4e6b408de890a1ae2349c27318ffa49ded54365a4a74429b4ded867fd3c5f283"
+    },
+    {
+      "path": "results/rag_eval/rag_eval_summary.json",
+      "sha256": "b55e513e76087326df6a2f2ed878d3a1e49e2539be684e49b8e8b9cd226701c2"
+    },
+    {
+      "path": "results/rag_eval/rerank_ab_summary.json",
+      "sha256": "0c9e58c1f1fcce0b06c46c2ba69e18f1f84caac821b2266341fda804e76882c6"
+    },
+    {
+      "path": "results/rag_eval/kappa.json",
+      "sha256": "5b6da3f4cc7896deadcbfa3ee7fe9bba5c51e4fcf2ce9130490347d7cdda298d"
+    },
+    {
+      "path": "results/asset_aware_triage.json",
+      "sha256": "70265fad8213945afd77af866bbd1f60a5ede86e26af5a9ff4a38a12e6d072cc"
+    },
+    {
+      "path": "results/shap_v2.json",
+      "sha256": "f701b5fa9e05f3e93bdb13f76358c0a91a972fba905809245e985f1c65c25b0a"
+    }
+  ],
+  "verification": {
+    "tests": "144-test prior full suite passed; 14 targeted CoVe/reranker tests passed after update",
+    "warnings": 2,
+    "a11y_high_severity": 0,
+    "a11y_medium_severity": 1,
+    "a11y_note": "The only medium finding is the author-information layout table, which is intentionally not marked as a data-table header."
+  }
+}

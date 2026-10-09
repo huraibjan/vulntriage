@@ -14,14 +14,16 @@
 
 ## Overview
 
-VulnTriage is a full-stack, research-grade vulnerability triage platform that addresses a critical gap in cyber threat management: **97% of published CVEs are never exploited, yet security teams treat them all equally**.
+VulnTriage is an open, containerized vulnerability-triage pipeline. Security teams can patch only a small fraction of published CVEs, and most are never exploited. The system connects an exploitability ranking to evidence, asset context and a defensible action, and it audits its own evaluation for leakage.
 
-This system combines:
-- **Machine Learning** — XGBoost Reciprocal Rank Fusion (RRF) ensemble predicting CVE exploitability with PR-AUC **0.3671** (+35.4% over EPSS baseline)
-- **Circularity Audit Framework** — Novel 4-layer leakage taxonomy detecting **3.73× metric inflation** from circular feature constructions
-- **RAG Intelligence Briefs** — Qdrant + SBERT + GPT-4o-mini generating MITRE ATT&CK-grounded vulnerability briefs
-- **SSVC Decision Engine** — 5-tier actionable triage output with explicit SLAs (24h → 1yr)
-- **Production Platform** — React + FastAPI + PostgreSQL + Qdrant, fully Dockerized
+It combines:
+- **Exploitability ranking** — Reciprocal Rank Fusion (RRF) over three rank sources: a leakage-safe XGBoost tabular model, an XGBoost model with SBERT text embeddings, and EPSS. The fused value is a rank, not a calibrated probability.
+- **Leakage audit** — a four-layer check (temporal, label, entity-proxy, correlation) and a historical-EPSS sensitivity analysis that shows where apparent gains over EPSS do and do not survive.
+- **Grounded ATT&CK briefs** — Qdrant + SBERT retrieval and GPT-4o-mini generation, with every technique ID validated against the ATT&CK v18.1 STIX corpus and every cited URL checked against the CVE's own references. An optional verification pass trades coverage for precision.
+- **Asset-aware decisions** — SBOM (CycloneDX, SPDX) and VEX (OpenVEX, CSAF) ingestion, version-range matching against NVD configurations, and an SSVC-inspired engine that assigns one of five action tiers with an SLA and a rationale.
+- **Platform** — React, FastAPI, PostgreSQL and Qdrant under Docker Compose.
+
+The accompanying paper is *VulnTriage: Artificial Intelligence-Driven CVE Exploitability Prediction with Reciprocal Rank Fusion and Circularity-Aware Evaluation* (IEEE ISAIA 2026).
 
 ---
 
@@ -49,21 +51,43 @@ This system combines:
 
 ## Key Results
 
-| Metric | Value | vs. Baseline |
-|---|---|---|
-| PR-AUC (RRF Ensemble) | **0.3671** | +35.4% over EPSS (0.271) |
-| PR-AUC (EPSS baseline) | 0.2710 | — |
-| PR-AUC (CVSS baseline) | 0.0110 | — |
-| ROC-AUC (RRF Ensemble) | **0.9749** | — |
-| Precision@100 | **0.71** | — |
-| F1 Score | **0.407** | — |
-| Circularity inflation ratio | **3.73×** | PR-AUC 0.8911 → 0.2389 (clean) |
-| Dataset size | **180,497 CVEs** | NVD 1999–2025 |
-| Positive rate | **0.39%** | CISA KEV-strict labels |
-| Temporal train/test split | **June 2024** | No future leakage |
+All numbers are from the accepted paper and regenerate from `results/`. The test partition is 70,831 CVEs published on or after 2024-06-01, with 277 CISA KEV positives (0.39%).
+
+**Ranking against EPSS**
+
+| Setting | RRF PR-AUC | EPSS PR-AUC | Difference |
+|---|---|---|---|
+| Frozen March 2026 feature snapshot | **0.3671** | 0.2711 | +35.4% (95% CI +0.054 to +0.142) |
+| Historical EPSS (first monthly score on or after publication) | **0.2678** | 0.2581 | +3.8% (95% CI −0.031 to +0.052), not significant |
+
+The frozen-snapshot gap is therefore not a deployment-time superiority claim. RRF is an integration choice; EPSS is retained as a rank source and as the principal baseline.
+
+**Frozen-snapshot model comparison**
+
+| Model | PR-AUC | ROC-AUC | P@100 | Role |
+|---|---|---|---|---|
+| CVSS baseline | 0.011 | 0.750 | 0.06 | severity |
+| EPSS baseline | 0.271 | 0.963 | 0.44 | ranker |
+| XGBoost tabular (33 features) | 0.251 | 0.925 | 0.53 | ranker |
+| XGBoost + SBERT embeddings | 0.309 | 0.930 | 0.66 | ranker |
+| Text logistic regression | 0.022 | 0.826 | 0.03 | diagnostic, not fused |
+| **RRF (k = 60)** | **0.367** | **0.975** | **0.71** | fusion |
+
+**Other findings**
+
+| Finding | Value |
+|---|---|
+| Circularity stress test (exploit-derived proxies vs clean tabular) | PR-AUC 1.000 vs 0.268, a 3.73× inflation |
+| Removing EPSS from the clean tabular model | PR-AUC 0.268 → 0.034 (−87%) |
+| Fabricated ATT&CK IDs in 150 generated briefs | 0 |
+| Briefs citing a CVE-listed advisory | 149 of 150 |
+| Over-rationalized mappings (GPT-4o judge), standard → verified mode | 27.3% → 12.0%, with abstention 1.3% → 34.7% |
+| Dataset | 180,497 NVD CVEs published 2020–2025 |
 
 ![Model Comparison — RRF Ensemble vs Baselines](docs/figures/ensemble_comparison_bars.png)
-*Figure 1: PR-AUC comparison across all model configurations and feature ablations. RRF Ensemble achieves 0.3671 vs EPSS baseline 0.271.*
+*Figure 1: Frozen-snapshot PR-AUC across model configurations.*
+
+**Asset-context experiment (RQ4): robustness to VEX scope.** The paper reports that synthetic asset evidence changed 23.4% of decisions and reduced the urgent queue by 86% (1,286 → 177); there, a VEX statement recorded for a CVE applies wherever that CVE appears. The engine has since been hardened with a stricter rule, in which a statement applies only to the asset it names or to assets that have the named product installed. Under that conservative rule the same seeded experiment still changes 19.1% of decisions and reduces the urgent queue by 58.6% (1,286 → 533). The paper's artifact is `results/asset_aware_triage.json`; the stricter run is `results/asset_aware_triage_corrected_vex_scope.json`. Both are synthetic-fleet sensitivity results, not enterprise outcomes.
 
 ---
 
@@ -94,13 +118,13 @@ This system combines:
 │            ▼                                                            │
 │   Feature Engineering           ML Pipeline                            │
 │   ┌─────────────────────┐       ┌─────────────────────────────────┐    │
-│   │ cvss_parser.py      │──────▶│ Model A: XGBoost Tabular        │    │
-│   │ builder.py (37 feat)│──────▶│ Model B: XGBoost Tab+Emb        │    │
-│   │ leakage_audit.py    │──────▶│ Model C: Text LogReg (SBERT)    │    │
+│   │ cvss_parser.py      │──────▶│ Rank 1: XGBoost tabular         │    │
+│   │ builder.py (33 feat)│──────▶│ Rank 2: XGBoost tab + SBERT     │    │
+│   │ leakage_audit.py    │──────▶│ Rank 3: EPSS score              │    │
 │   │ ablation.py         │       │          │                       │    │
 │   └─────────────────────┘       │          ▼                       │    │
 │                                 │ RRF Fusion (k=60)                │    │
-│   Vector Store                  │ → Exploitation Score [0,1]       │    │
+│   Vector Store                  │ → fused rank (not a probability) │    │
 │   ┌──────────────────┐          └──────────────┬──────────────────┘    │
 │   │  Qdrant (6333)   │                         │                        │
 │   │  attck_text coll │                         ▼                        │
@@ -292,7 +316,7 @@ make up              # Start Docker services (postgres + qdrant)
 make down            # Stop all services
 make ingest          # Ingest sample VulnDB data
 make enrich          # Fetch EPSS, KEV, ATT&CK enrichment
-make features        # Build 37-feature vectors with leakage audit
+make features        # Build feature vectors with leakage audit
 make train-tabular   # Train XGBoost tabular model
 make train-text      # Train SBERT text model
 make evaluate        # Evaluate all models vs baselines
@@ -398,45 +422,53 @@ Interactive docs: `http://localhost:8000/docs`
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | PostgreSQL + Qdrant connectivity check |
-| `GET` | `/v1/vulnerabilities` | List CVEs (pagination, filter, sort by ML score) |
-| `GET` | `/v1/vulnerabilities/{cve_id}` | Full CVE detail with ML scores + signals |
-| `GET` | `/v1/vulnerabilities/search?q=` | Full-text search across descriptions |
-| `POST` | `/v1/predict/{cve_id}` | Run RRF ensemble prediction |
-| `POST` | `/v1/predict/{cve_id}?asof=YYYY-MM-DD` | Temporal point-in-time prediction |
-| `POST` | `/v1/brief/{cve_id}` | Generate ATT&CK-grounded RAG brief |
-| `GET` | `/v1/stats` | Aggregate counts, KEV stats, score distribution |
-| `GET` | `/v1/reports/latest` | Latest evaluation metrics + figure paths |
+| `GET` | `/health` | PostgreSQL and Qdrant connectivity |
+| `GET` | `/v1/vulnerabilities` | List CVEs (pagination, search, CVSS and KEV filters) |
+| `GET` | `/v1/vulnerabilities/{cve_id}` | CVE detail |
+| `POST` | `/v1/predict/{cve_id}` | RRF rank against the held-out reference population, the three source ranks, and an assetless SSVC-inspired decision |
+| `POST` | `/v1/brief/{cve_id}` | Retrieval-only ATT&CK brief (no LLM) |
+| `POST` | `/v1/brief-llm/{cve_id}` | LLM brief; `?verify=true` enables the high-precision verification pass; results are cached |
+| `GET` | `/v1/assets` · `POST` `/v1/assets` | List and register assets |
+| `POST` | `/v1/assets/{id}/sbom` | Upload a CycloneDX or SPDX document and rebuild the finding queue |
+| `POST` | `/v1/assets/{id}/vex` | Upload OpenVEX or CSAF VEX statements scoped to the asset |
+| `POST` | `/v1/assets/{id}/evaluate` | Recompute the finding queue |
+| `GET` | `/v1/assets/{id}/findings` | Prioritised findings with version evidence and rationale |
+| `GET` | `/v1/assets/{id}/decision/{cve_id}` | Decision for one asset–CVE pair |
+| `GET` | `/v1/stats` · `/v1/stats/top-risk` | Dashboard aggregates |
+| `GET` | `/v1/policy` | Decision policy description |
+
+When `VULNTRIAGE_API_KEY` is set, write endpoints and `/v1/brief-llm` require an `X-API-Key` header. LLM briefs are rate-limited per client (`LLM_RATE_LIMIT_PER_MINUTE`).
 
 ### Example requests
 
 ```bash
-# Health check
 curl http://localhost:8000/health
 
-# Get top-50 CVEs sorted by ML exploitation score
-curl "http://localhost:8000/v1/vulnerabilities?sort=ml_score&limit=50"
+# Rank a CVE
+curl -X POST http://localhost:8000/v1/predict/CVE-2024-9465
 
-# Predict for a CVE
-curl -X POST http://localhost:8000/v1/predict/CVE-2024-21762
+# LLM brief, standard and high-precision
+curl -X POST http://localhost:8000/v1/brief-llm/CVE-2024-9465
+curl -X POST "http://localhost:8000/v1/brief-llm/CVE-2024-9465?verify=true"
 
-# Generate AI brief
-curl -X POST http://localhost:8000/v1/brief/CVE-2024-21762
+# Register an asset, upload its SBOM, read the queue
+ASSET=$(curl -s -X POST http://localhost:8000/v1/assets -H 'Content-Type: application/json' \
+  -d '{"name":"web-frontend","asset_type":"container","criticality":"high","is_internet_facing":true}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+curl -X POST http://localhost:8000/v1/assets/$ASSET/sbom -H 'Content-Type: application/json' \
+  --data-binary @data/sbom/httpd_2.4.49.cdx.json
+curl "http://localhost:8000/v1/assets/$ASSET/findings?limit=10"
 ```
 
-RAG brief response schema:
+The rank response states its own semantics:
+
 ```json
 {
-  "cve_id": "CVE-2024-21762",
-  "executive_summary": "...",
-  "affected_products": ["FortiOS 7.x", "FortiProxy 7.x"],
-  "attack_techniques": [
-    {"technique_id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"}
-  ],
-  "remediation": "Apply FortiOS 7.4.3 patch immediately...",
-  "confidence": "HIGH",
-  "sources": ["NVD", "CISA KEV", "MITRE ATT&CK"],
-  "safety": "COMPLIANT"
+  "rrf": {
+    "rank": 18, "n_reference": 70831, "percentile": 99.98, "k": 60,
+    "sources": {"xgb_tabular": {"rank": 31}, "xgb_tabemb": {"rank": 50}, "epss": {"rank": 10}},
+    "calibrated_probability": false
+  }
 }
 ```
 
@@ -444,99 +476,85 @@ RAG brief response schema:
 
 ## ML Pipeline
 
-### Feature Groups (37 total)
+### Features (33, clean tabular configuration)
 
-| Group | Count | Importance |
-|---|---|---|
-| CVSS Vector Components (AV, AC, PR, UI, S, C, I, A, base score) | 9 | 43.4% |
-| Exploit Signals (KEV flag, PoC count, Metasploit flag) | 3 | 18.6% |
-| EPSS (score, percentile) | 2 | 15.2% |
-| Temporal (days_since_publish, days_to_first_exploit) | 2 | 12.8% |
-| Reference Signals (reference_count, vendor_advisory_flag) | 2 | 9.0% |
-| CWE Encoding (one-hot top-50 categories) | 19 | 1.0% |
+15 CVSS core and vector fields, 12 CWE indicators, EPSS, days since publication, two description statistics, and product and reference counts. Exploit-derived signals (KEV flag, PoC and Metasploit indicators) are excluded from the model under the KEV-strict label policy; using them reads the label off the input.
 
-### Base Models & RRF Fusion
+TreeSHAP attribution on the saved model: NVD reference count 33%, EPSS 27%, affected-product count 8%, days since publication 7%, description length 4%. Attribution is not necessity: a leave-one-group-out retraining shows EPSS is the least replaceable input (−87% PR-AUC when removed).
 
-| Model | Input | PR-AUC | ROC-AUC |
+### Rank sources and fusion
+
+| Source | Input | PR-AUC | ROC-AUC |
 |---|---|---|---|
-| XGBoost Tabular | 33 features | 0.261 | 0.928 |
-| XGBoost Tab+Emb | 33 + 64-dim PCA SBERT = 97 | 0.271 | 0.936 |
-| Text LogReg | 384-dim SBERT | 0.022 | 0.746 |
-| **RRF Ensemble** | Rank fusion of all three | **0.3671** | **0.9749** |
+| XGBoost tabular | 33 features | 0.251 | 0.925 |
+| XGBoost tab + embeddings | 33 + 64 PCA-reduced SBERT components | 0.309 | 0.930 |
+| EPSS | published score | 0.271 | 0.963 |
+| **RRF (k = 60)** | rank fusion of the three | **0.367** | **0.975** |
 
-RRF formula: `RRF(d) = Σᵣ 1 / (k + rankᵣ(d))` where `k = 60`
+`RRF(d) = Σᵣ 1 / (k + rankᵣ(d))`, with `k = 60` (the literature default; a post-hoc sweep over k ∈ [5, 300] moves PR-AUC by 0.034).
+
+**Serving.** A rank needs a population. `vulntriage build-rrf-reference` recomputes the three source scores on the held-out partition, refuses to proceed unless the published PR-AUC values reproduce to five decimals, and stores the sorted score arrays in `models/rrf_reference_v2.npz`. The API ranks a CVE's three scores against that reference and fuses the ranks. The result is reported as a rank and percentile.
 
 ![Precision-Recall Curves](docs/figures/ensemble_pr_curves.png)
-*Figure 5: Precision-Recall curves for all models. RRF Ensemble (blue) dominates across all recall levels.*
+*Figure 5: Frozen-snapshot precision-recall curves.*
 
-![Feature Importance](docs/figures/feature_importance_ensemble.png)
-*Figure 6: XGBoost feature importance. CVSS attack vector, EPSS score, and KEV membership are top predictors.*
+### Leakage audit (RQ2)
 
-### Circularity Audit (RQ2)
+| Layer | What it flags |
+|---|---|
+| Temporal | Features observed after the decision time |
+| Label | Direct or derived exploit signals that overlap the KEV outcome |
+| Entity | Identifier-correlated proxies |
+| Correlation | Feature–label pairs above a statistical threshold |
 
-| Leakage Type | Description | Effect |
-|---|---|---|
-| Temporal | Future labels in training set | Split boundary violation |
-| Label | KEV/PoC flag used as input feature | **3.73× PR-AUC inflation** |
-| Entity | ID-correlated proxy variables | Variable inflation |
-| Correlation | Indirect statistical co-occurrence | Variable inflation |
+The proxy-rich stress test reaches PR-AUC 1.000 against 0.268 for the clean configuration (3.73×). It is an intentionally invalid upper bound, not a deployable predictor.
 
 ![Circularity Inflation](docs/figures/circularity_inflation.png)
-*Figure 7: PR-AUC inflation from circular features — 0.8911 (circular) vs 0.2389 (clean) — a 3.73× inflation factor.*
-
-![Ablation Heatmap](docs/figures/ablation_heatmap.png)
-*Figure 8: Ablation heatmap across 6 feature configurations × 7 model variants. Color encodes PR-AUC.*
 
 ---
 
 ## RAG Pipeline
 
-```
-CVE Metadata
-     │
-     ▼
-[Stage 1] Assemble context (description + CVSS + EPSS + KEV status)
-     │
-     ▼
-[Stage 2] Qdrant cosine retrieval — k=5 nearest ATT&CK techniques (SBERT)
-     │
-     ▼
-[Stage 3] STIX 2.1 validation — technique IDs verified against MITRE corpus
-     │
-     ▼
-[Stage 4] GPT-4o-mini generation — structured prompt → JSON brief
-     │
-     ▼
-[Stage 5] Hallucination detection — 10 regex patterns + technique ID check
-           → COMPLIANT or FLAGGED
-```
+1. Build a query from the CVE description, CWE and affected products.
+2. Retrieve the nearest ATT&CK techniques from Qdrant (SBERT cosine similarity).
+3. Optional high-precision mode: a Chain-of-Verification pass asks, per candidate, whether the technique describes how this CVE would be exploited, and drops unconfirmed candidates. When none remain the brief asserts no mapping.
+4. Generate a JSON brief with GPT-4o-mini. CVE text is passed inside a delimited block and treated as data, so instructions embedded in a description cannot redirect the model.
+5. Validate: every technique ID must exist in the pinned ATT&CK v18.1 STIX corpus, and a remediation URL is kept only if it appears verbatim in the CVE's reference list.
 
-Qdrant collections:
-- `attck_text` — MITRE ATT&CK technique embeddings
-- `vuln_text` — CVE description embeddings
+Briefs are cached per CVE and mode. The response lists retrieved techniques the model did not use in its own analysis.
 
-![AI Intelligence Brief](docs/figures/screenshot_ai_briefing.png)
-*Figure 9: RAG-generated ATT&CK-grounded intelligence brief for CVE-2024-21762 (Fortinet FortiOS RCE).*
+Deterministic checks validate identifiers and references. Whether a valid technique is the *right* one is a semantic judgement; the paper's relevance and faithfulness figures are model-judged, not human-rated.
+
+Qdrant collections: `attck_text` (691 ATT&CK techniques) and `vuln_text`.
 
 ---
 
-## Decision Engine
+## Decision Engine and Asset Context
 
-| Layer | Check | Outcome on Match |
-|---|---|---|
-| A | Vendor VEX "not-affected" statement | → `ACCEPT` |
-| B | Asset inventory CPE match | → deprioritise if no match |
-| C | CISA KEV membership OR ML score ≥ threshold | → escalate |
-| D | Public PoC exists AND network-reachable service | → escalate |
-| E | Composite risk = CVSS × EPSS × ML score | → final tier |
+Upload an SBOM for an asset and the engine builds its finding queue:
 
-| Tier | SLA | Trigger |
-|---|---|---|
-| `PATCH_NOW` | 24 hours | KEV + reachable + ML ≥ threshold |
-| `MITIGATE_NOW` | 24 hours | Active PoC + high ML score |
-| `PATCH_WINDOW` | 30 days | Elevated composite risk |
-| `MONITOR` | 90 days | Low probability, low exposure |
-| `ACCEPT` | 1 year | VEX not-affected or negligible risk |
+1. **Identity.** Each component is resolved to an NVD vendor/product, from its CPE (Syft, Trivy) or from the package name when it maps to exactly one known vendor.
+2. **Version match.** The installed version is compared with the version ranges in the stored NVD configurations. A patched component is reported as *not in range* and accepted; a component inside a range is *version confirmed*.
+3. **VEX.** A statement is applied only if it is scoped to the asset or names a product installed on it. A statement about one product never suppresses a finding for another.
+4. **Decision.** Affectedness, exploitation evidence (KEV, public PoC), reachability, controls, asset criticality and CVSS/EPSS/ML risk are combined into one tier, with the rationale recorded.
+
+| Tier | SLA |
+|---|---|
+| `PATCH_NOW` | 24 hours |
+| `MITIGATE_NOW` | 24 hours |
+| `PATCH_WINDOW` | 30 days |
+| `MONITOR` | 90 days |
+| `ACCEPT` | 1 year |
+
+Each finding also records the action it would receive with no asset context, so the effect of the asset evidence is visible per CVE.
+
+Three real SBOMs generated with Syft are in `data/sbom/`. On `httpd:2.4.49` registered as an internet-facing, high-criticality asset, the queue places CVE-2021-41773 and CVE-2021-42013 (both in CISA KEV) at `PATCH_NOW` with the matching version as evidence.
+
+**CISA SSVC outcome.** Alongside the five tiers, each decision reports the standard CISA SSVC outcome (Track, Track*, Attend, Act) from the CISA Coordinator v2.0.3 table. Exploitation is observed from KEV and public-PoC signals; Automatable and Technical Impact are derived from the CVSS vector and Mission & Well-being from asset criticality, and every decision point states whether it is observed or inferred. These are not CISA's own assessments.
+
+**Distribution backports (opt-in).** Versions are compared with upstream ranges, so a Debian or Alpine package that received a backported fix can still appear as affected. With `OSV_BACKPORT_CHECK=true` the engine asks OSV whether the distribution lists the installed revision as affected, and accepts a finding only when the distribution tracks that CVE for the package and the revision is outside its affected set. It is off by default because it sends package names and versions to api.osv.dev. A vendor VEX statement resolves the same cases without a lookup.
+
+**CVSS v4.** v4.0 vectors are parsed and projected onto the v3 feature encoding (all 2,210 stored v4 vectors parse). The rank models were trained with these CVEs as featureless, so their live scores come from features unseen in training.
 
 ---
 
@@ -556,7 +574,7 @@ vulntriage/
 │   │   ├── asset_models.py          # Asset inventory models
 │   │   └── session.py               # Engine, session factory, init_db
 │   ├── features/
-│   │   ├── builder.py               # 37-feature engineering pipeline
+│   │   ├── builder.py               # feature engineering (33 clean tabular features)
 │   │   ├── cvss_parser.py           # CVSS v3.x AV/AC/PR/UI/S/C/I/A parser
 │   │   ├── leakage_audit.py         # 4-layer circularity audit framework
 │   │   ├── ablation.py              # Feature group ablation runner
@@ -573,7 +591,7 @@ vulntriage/
 │   ├── ml/
 │   │   ├── tabular/train.py         # XGBoost training + evaluation
 │   │   ├── text/embeddings.py       # SBERT + PCA pipeline
-│   │   ├── text/train.py            # Text LogReg / DistilBERT training
+│   │   ├── text/train.py            # diagnostic text model (not fused)
 │   │   ├── stacking/ensemble.py     # RRF fusion + calibration
 │   │   ├── evaluation_slices.py     # CVSS severity slice evaluation
 │   │   └── evaluation_actionability.py
@@ -621,7 +639,7 @@ vulntriage/
 | `vulnerabilities` | Core CVE records — UUID pk, CVSS vector, description, published_date, CWE (JSONB), references (JSONB) |
 | `signal_observations` | Time-stamped signals — EPSS score, KEV flag, PoC count, Metasploit flag |
 | `label_observations` | Ground truth labels — KEV-strict or composite, with provenance |
-| `feature_snapshots` | Point-in-time feature vectors — 37-dim JSONB, as_of_date |
+| `feature_snapshots` | Feature vectors per (CVE, as-of date), JSONB |
 | `model_runs` | Training run metadata — hyperparams (JSONB), PR-AUC, ROC-AUC |
 | `predictions` | Per-CVE ML scores — exploitation_score, tier, SLA |
 | `embedding_meta` | Vector tracking — Qdrant collection, point ID, model version |
@@ -659,13 +677,39 @@ poetry run pytest tests/test_leakage_audit.py -v
 
 | RQ | Question | Result |
 |---|---|---|
-| **RQ1** | Can an RRF ensemble outperform EPSS under strict temporal evaluation? | PR-AUC 0.3671 vs 0.271 (+35.4%) |
-| **RQ2** | How much do circular features inflate metrics, and can this be detected? | 3.73× inflation; 4-layer audit framework |
-| **RQ3** | Can RAG produce verifiable, ATT&CK-grounded intelligence briefs? | STIX-validated, hallucination-checked briefs |
-| **RQ4** | Can a decision engine deliver auditable triage with explicit SLAs? | 5-tier SSVC output with 24h–1yr SLA |
+| **RQ1** | How does RRF compare with EPSS in a frozen snapshot? | 0.3671 vs 0.2711; with historical EPSS the +3.8% difference is not statistically reliable |
+| **RQ2** | Do circular or post-decision features inflate metrics? | 3.73× inflation in the proxy stress test |
+| **RQ3** | Do grounding and optional verification reduce unsupported ATT&CK mappings? | 0 fabricated IDs; over-rationalization 27.3% → 12.0% at the cost of 34.7% abstention |
+| **RQ4** | How does asset context change action tiers? | Synthetic fleet: 23.4% of decisions change in the paper; 19.1% under the stricter per-asset VEX scope |
 
-![Top-K Precision & Recall](docs/figures/topk_precision_recall.png)
-*Figure 10: Top-K precision and recall at K=25, 50, 100. The ensemble achieves 71% precision@100, directly supporting operational triage workflows.*
+## Checks added after publication
+
+| Check | Result | Artifact |
+|---|---|---|
+| ATT&CK retrieval against MITRE CTID analyst mappings (345 KEV CVEs, no LLM) | top-3 hit rate 0.267 exact, 0.307 with sub-techniques collapsed; exploitation-technique mappings only: 0.222. A constant guess of the three most common techniques scores 0.754 | `results/ctid_attack_eval.json` |
+| NIST LEV (CSWP 41) as a baseline, frozen setting, monthly EPSS snapshots | LEV PR-AUC 0.252 vs EPSS 0.271 (difference not significant); RRF minus LEV +0.115 (95% CI +0.063 to +0.164); adding LEV to RRF changes nothing measurable | `results/lev_baseline.json` |
+| Asset experiment under the stricter per-asset VEX scope | 19.1% of decisions still change, urgent queue −58.6% (paper, per-CVE scope: 23.4%, −86%) | `results/asset_aware_triage_corrected_vex_scope.json` |
+
+The CTID result means the retriever alone agrees poorly with human analysts. CTID maps exploitation method and impact at parent-technique level, and impact often cannot be inferred from a CVE description, so the comparison is not like for like with the brief-level relevance judged in RQ3; it does show that the LLM-judged relevance figures should not be read as human-validated accuracy.
+
+## Data files not stored in the repository
+
+Two public datasets are downloaded instead of committed; their checksums are in `reports/snapshot_manifest.json`.
+
+- `data/attck/enterprise-attack-full.json`: the MITRE ATT&CK Enterprise v18.1 STIX bundle, from the `mitre-attack/attack-stix-data` repository.
+- `data/epss_history/`: FIRST's monthly EPSS score files (`epss_scores-YYYY-MM-DD.csv.gz`, 2024-06 to 2026-03), used by the historical-EPSS analysis.
+
+## Keeping data current
+
+`vulntriage refresh-feeds` appends the day's EPSS scores and CISA KEV listings (including the ransomware-use flag). It is idempotent per score date and never overwrites history, so point-in-time evaluation becomes possible from the stored data. Feature construction only uses signals observed on or before the as-of date. The stored snapshot ends in March 2026; the first refresh adds current scores and changes live ranks.
+
+## Limitations
+
+- Features and KEV labels are a March 2026 snapshot paired with a chronological split. Only EPSS is replaced historically, so no result is a full prospective replay.
+- KEV is curated and incomplete; negatives may later be exploited.
+- The asset experiment uses a synthetic fleet and synthesized VEX, controls and reachability.
+- Brief relevance and faithfulness are judged by LLMs, not by human annotators.
+- The stored data ends in March 2026 and EPSS is held for a single date until `refresh-feeds` is scheduled.
 
 ---
 
